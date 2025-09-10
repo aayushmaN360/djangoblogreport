@@ -1,0 +1,106 @@
+{% load static %}
+<div class="comment mb-4" id="comment-{{ comment.id }}">
+  <div class="d-flex align-items-start">
+    <!-- Author avatar -->
+    <img src="{% if 'default.jpg' in comment.author.profile.image.url %}{{ MEDIA_URL }}profile_pics/default.jpg{% else %}{{ comment.author.profile.image.url }}{% endif %}"
+         alt="{{ comment.author.username }}"
+         class="rounded-circle me-3"
+         style="width: 45px; height: 45px; object-fit: cover;">
+
+    <div class="flex-grow-1">
+      <!-- Author + meta -->
+      <div class="d-flex justify-content-between">
+        <h6 class="mb-0">
+          <a href="{% url 'profile_page' username=comment.author.username %}" class="text-decoration-none">
+            {{ comment.author.username }}
+          </a>
+        </h6>
+        <small class="text-muted">{{ comment.created_at|timesince }} ago</small>
+      </div>
+
+      <!-- Comment text -->
+      <p class="mb-1">{{ comment.text|linebreaksbr }}</p>
+
+      <!-- ✅ Action buttons + status badge -->
+      <div class="d-flex justify-content-between align-items-center">
+        <!-- Left side: Buttons -->
+        <div class="d-flex align-items-center gap-2">
+          {% if comment.status == 'approved' %}
+              <!-- Upvote -->
+              <button class="btn btn-sm btn-outline-success comment-action-btn"
+                      data-action="upvote"
+                      data-id="{{ comment.id }}">
+                  <i class="bi bi-hand-thumbs-up"></i>
+                  <span id="comment-{{ comment.id }}-upvotes">{{ comment.upvotes.count }}</span>
+              </button>
+
+              <!-- Downvote -->
+              <button class="btn btn-sm btn-outline-danger comment-action-btn"
+                      data-action="downvote"
+                      data-id="{{ comment.id }}">
+                  <i class="bi bi-hand-thumbs-down"></i>
+                  <span id="comment-{{ comment.id }}-downvotes">{{ comment.downvotes.count }}</span>
+              </button>
+
+              <!-- Reply -->
+              {% if user.is_authenticated %}
+              <button class="btn btn-sm btn-outline-primary toggle-reply-btn"
+                      data-id="{{ comment.id }}">
+                  <i class="bi bi-reply"></i> Reply
+              </button>
+              {% endif %}
+          {% endif %}
+
+          <!-- Report -->
+          {% if user.is_authenticated and user != comment.author and comment.status == 'approved' %}
+          <button class="btn btn-sm btn-outline-warning comment-action-btn"
+                  data-action="report"
+                  data-id="{{ comment.id }}">
+              <i class="bi bi-flag"></i>
+          </button>
+          {% endif %}
+
+          <!-- Delete -->
+          {% if user == comment.author or user.is_staff or user.is_superuser %}
+          <button class="btn btn-sm btn-outline-danger comment-action-btn"
+                  data-action="delete"
+                  data-id="{{ comment.id }}">
+              <i class="bi bi-trash"></i>
+          </button>
+          {% endif %}
+        </div>
+
+        <!-- Right side: Status Badge & Edit -->
+        <div>
+          {% if comment.status == 'pending_review' and user == comment.author %}
+              <span class="badge bg-warning text-dark me-2">Pending Review</span>
+              <a href="{% url 'edit_my_comment' comment.pk %}" class="btn btn-sm btn-primary">
+                  <i class="bi bi-pencil-fill"></i> Edit
+              </a>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- ✅ Reply form with ajax-comment-form -->
+      {% if user.is_authenticated %}
+    <div class="reply-form-wrapper mt-3 d-none" id="reply-form-{{ comment.id }}">
+        <form method="post" action="{% url 'add_comment' post.pk %}" class="ajax-comment-form">
+            {% csrf_token %}
+            <input type="hidden" name="parent_id" value="{{ comment.id }}">
+            <div class="mb-2">
+                <textarea class="form-control" name="text" rows="2" placeholder="Write your reply..."></textarea>
+            </div>
+            <button type="submit" class="btn btn-sm btn-primary">Submit Reply</button>
+        </form>
+    </div>
+{% endif %}
+
+      <!-- Nested Replies -->
+      <div class="replies-container mt-3 ms-4 border-start ps-3">
+        {% for reply in comment.replies.all %}
+          {% include "blog/includes/comment.html" with comment=reply %}
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>

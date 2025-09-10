@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-9">
+
+    <!-- Post Display -->
+    <div class="card shadow-sm mb-4">
+      {% if post.photo %}
+        <img src="{{ post.photo.url }}" class="card-img-top" style="max-height:450px;object-fit:cover;">
+      {% endif %}
+      <div class="card-body p-4">
+        <h1 class="card-title">{{ post.title }}</h1>
+        <p class="text-muted">
+          By <a href="{% url 'profile_page' post.author.username %}">{{ post.author.username }}</a>
+          on {{ post.created_at|date:"F d, Y" }}
+          <span class="badge bg-secondary ms-2">{{ post.genre.name|default:"Uncategorized" }}</span>
+        </p>
+        <div class="post-content fs-5">{{ post.content|safe }}</div>
+      </div>
+    </div>
+
+    <!-- Discussion Section -->
+    <div class="card shadow-sm">
+      <div class="card-body p-4">
+        <h3 class="mb-4">Discussion ({{ comments.count }})</h3>
+
+        {% if user.is_authenticated %}
+          <form method="post" action="{% url 'add_comment' post.pk %}" class="ajax-comment-form">
+            {% csrf_token %}
+            <div class="mb-2">
+                <textarea name="text" class="form-control" id="comment-textarea" rows="4" placeholder="Join the discussion... (max 100 words)" required></textarea>
+            </div>
+            <div class="d-flex justify-content-between align-items-center">
+                <button type="submit" class="btn btn-primary">Submit</button>
+                <small class="text-muted" id="word-count">0 / 100 words</small>
+            </div>
+          </form>
+        {% else %}
+          <div class="alert alert-light border">
+            Please <a href="{% url 'login' %}?next={{ request.path }}">log in</a> to comment.
+          </div>
+        {% endif %}
+
+        <hr class="my-4">
+
+        <!-- ✅ NEW SORTING BUTTONS -->
+        <div class="d-flex justify-content-end mb-3" id="sorting-controls" data-post-id="{{ post.pk }}">
+          <small class="text-muted me-2 my-auto">Sort by:</small>
+          <div class="btn-group btn-group-sm">
+            <a href="?sort=oldest" class="btn btn-outline-primary sort-btn" data-sort="oldest">Oldest</a>
+            <a href="?sort=newest" class="btn btn-primary sort-btn" data-sort="newest">Newest</a>
+            <a href="?sort=top" class="btn btn-outline-primary sort-btn" data-sort="top">Top</a>
+          </div>
+        </div>
+
+        <!-- ✅ AJAX-COMPATIBLE COMMENT LIST -->
+        <div class="comment-list" id="comment-list-container">
+          {% for comment in comments %}
+            {% include "blog/includes/comment.html" with comment=comment %}
+          {% empty %}
+            <p class="text-muted">No comments yet.</p>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Report Modal -->
+<div class="modal fade" id="reportModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-warning text-dark">
+        <h5 class="modal-title">Report Comment</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        Are you sure you want to report this comment for review?
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger" id="confirmReportBtn">Report</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock content %}
+
+{% block javascript %}
+<script>
+// --- FIX: Word Counter ---
+document.addEventListener("DOMContentLoaded", function () {
+    const textarea = document.getElementById('comment-textarea');
+    const wordCountDisplay = document.getElementById('word-count');
+    const wordLimit = 100;
+
+    if (textarea && wordCountDisplay) {
+        textarea.addEventListener('input', () => {
+            const text = textarea.value.trim();
+            const words = text === '' ? 0 : text.split(/\s+/).length;
+
+            wordCountDisplay.textContent = `${words} / ${wordLimit} words`;
+
+            if (words > wordLimit) {
+                wordCountDisplay.style.color = 'red';
+            } else {
+                wordCountDisplay.style.color = 'inherit';
+            }
+        });
+    }
+});
+</script>
+{% endblock javascript %}

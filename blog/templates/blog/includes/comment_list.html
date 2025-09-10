@@ -1,0 +1,7 @@
+<!-- File: blog/templates/blog/includes/comment_list.html -->
+
+{% for comment in comments %}
+    {% include "blog/includes/comment.html" with comment=comment %}
+{% empty %}
+    <p class="text-muted">No comments yet.</p>
+{% endfor %}
