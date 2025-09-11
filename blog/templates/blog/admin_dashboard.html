@@ -131,6 +131,51 @@
         {% endif %}
       </div>
     </div>
+    
+    <!-- ========================================================== -->
+    <!-- === NEW: FEATURED POST TOOL === -->
+    <!-- ========================================================== -->
+    <div class="card shadow-sm mt-4">
+        <div class="card-header bg-white">
+            <h5 class="mb-0 fw-bold"><i class="bi bi-star-fill text-warning me-2"></i>Manage Featured Post</h5>
+        </div>
+        <div class="card-body">
+            {% if currently_featured_post %}
+                <div class="alert alert-info d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>Currently Featured:</strong>
+                        <a href="{{ currently_featured_post.get_absolute_url }}" target="_blank">
+                            {{ currently_featured_post.title }}
+                        </a>
+                    </div>
+                    <!-- Form to un-feature the current post -->
+                    <form method="post" action="{% url 'set_featured_post' %}" class="d-inline">
+                        {% csrf_token %}
+                        <input type="hidden" name="post_id" value="{{ currently_featured_post.pk }}">
+                        <input type="hidden" name="action" value="unfeature">
+                        <button type="submit" class="btn btn-secondary btn-sm">Un-feature</button>
+                    </form>
+                </div>
+            {% endif %}
+
+            <p class="text-muted">Select a new post to feature on the homepage. This will replace any currently featured post.</p>
+            <form method="post" action="{% url 'set_featured_post' %}">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="feature">
+                <div class="input-group">
+                    <select class="form-select" name="post_id" required>
+                        <option value="" selected disabled>Select a post to feature...</option>
+                        {% for post in all_posts %}
+                            {% if not post.is_featured %}
+                                <option value="{{ post.pk }}">{{ post.title }}</option>
+                            {% endif %}
+                        {% endfor %}
+                    </select>
+                    <button class="btn btn-warning" type="submit">Set as Featured</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
     <!-- Moderation Queue -->
     <div class="card shadow-sm mt-4">

@@ -16,6 +16,27 @@
           on {{ post.created_at|date:"F d, Y" }}
           <span class="badge bg-secondary ms-2">{{ post.genre.name|default:"Uncategorized" }}</span>
         </p>
+
+        <!-- =================================================================== -->
+        <!-- === Added Edit and Delete Buttons for the Post === -->
+        <!-- =================================================================== -->
+        {% if user.is_authenticated %}
+          <div class="post-actions border-top border-bottom my-3 py-2">
+            {% if user == post.author %}
+              <a href="{% url 'post_update' post.pk %}" class="btn btn-sm btn-outline-primary me-2">
+                <i class="bi bi-pencil-fill me-1"></i> Edit Post
+              </a>
+            {% endif %}
+
+            {% if user == post.author or user.is_superuser %}
+              <a href="{% url 'post_delete' post.pk %}" class="btn btn-sm btn-outline-danger">
+                <i class="bi bi-trash-fill me-1"></i> Delete Post
+              </a>
+            {% endif %}
+          </div>
+        {% endif %}
+        <!-- =================================================================== -->
+
         <div class="post-content fs-5">{{ post.content|safe }}</div>
       </div>
     </div>
@@ -44,7 +65,7 @@
 
         <hr class="my-4">
 
-        <!-- ✅ NEW SORTING BUTTONS -->
+        <!-- Sorting Controls -->
         <div class="d-flex justify-content-end mb-3" id="sorting-controls" data-post-id="{{ post.pk }}">
           <small class="text-muted me-2 my-auto">Sort by:</small>
           <div class="btn-group btn-group-sm">
@@ -54,7 +75,7 @@
           </div>
         </div>
 
-        <!-- ✅ AJAX-COMPATIBLE COMMENT LIST -->
+        <!-- Comment List -->
         <div class="comment-list" id="comment-list-container">
           {% for comment in comments %}
             {% include "blog/includes/comment.html" with comment=comment %}
@@ -90,7 +111,6 @@
 
 {% block javascript %}
 <script>
-// --- FIX: Word Counter ---
 document.addEventListener("DOMContentLoaded", function () {
     const textarea = document.getElementById('comment-textarea');
     const wordCountDisplay = document.getElementById('word-count');

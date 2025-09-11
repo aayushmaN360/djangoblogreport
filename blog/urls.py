@@ -34,7 +34,7 @@ urlpatterns = [
     path('comment/<int:pk>/edit/', views.edit_my_comment, name='edit_my_comment'),
     path("comment/reply/", views.reply_comment, name="reply_comment"),
     path('post/<int:pk>/sort_comments/', views.sort_comments, name='sort_comments'),
-    path('post/<int:pk>/get_comments/', views.get_comments_html, name='get_comments_html'),
+    #path('post/<int:pk>/get_comments/', views.get_comments_html, name='get_comments_html'),
 
 
     # ✅ Unified AJAX comment actions (upvote, downvote, delete)
@@ -49,5 +49,6 @@ urlpatterns = [
     path('admin/assign-author/', views.assign_author_role, name='assign_author_role'),
     path("admin-dashboard/ban/", views.ban_user, name="ban_user"),
     path("admin-dashboard/unban/<int:user_id>/", views.unban_user, name="unban_user"),
+    path('admin/set-featured-post/', views.set_featured_post, name='set_featured_post'),
 
 ]

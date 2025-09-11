@@ -7,7 +7,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin, 
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.urls import reverse_lazy
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Prefetch 
 from django.contrib.auth.models import User
 from django.core.paginator import Paginator
 from django.utils import timezone
@@ -16,7 +16,11 @@ from django.contrib.auth.models import Group
 from django.http import JsonResponse, HttpResponseForbidden
 from django.views.decorators.http import require_POST
 from django.template.loader import render_to_string
-
+from django.db.models import F #
+from django.views.generic import DetailView
+from django.db.models import Count, Q
+from .models import Post, Comment
+from .forms import CommentForm
 
 
 # --- Your Application's Imports ---
@@ -37,47 +41,68 @@ class PostListView(ListView):
     template_name = 'blog/post_list.html'
     context_object_name = 'posts'
     paginate_by = 5
-    ordering = ['-created_at'] # This sets the default order to newest first
+    ordering = ['-created_at']  # default order: newest first
 
     def get_queryset(self):
-        # Start with the default queryset (ordered by newest)
+        # Start with the default queryset (newest first)
         queryset = super().get_queryset()
-        
-        # Check if the user has requested a different sort order
-        sort_option = self.request.GET.get('sort')
 
-        if sort_option == 'oldest':
-            return queryset.order_by('created_at')
-        elif sort_option == 'comments':
-            # Note: We must filter for approved comments here too for an accurate count
+        # Check if the user requested a sort order
+        sort_option = self.request.GET.get("sort")
+
+        if sort_option == "oldest":
+            return queryset.order_by("created_at")
+
+        elif sort_option == "comments":
+            # Order by approved comment count
             return queryset.annotate(
-                comment_count=Count('comments', filter=Q(comments__status='approved'))
-            ).order_by('-comment_count', '-created_at')
-        
-        # If no valid sort_option is provided, return the default queryset
+                approved_comment_count=Count("comments", filter=Q(comments__status="approved"))
+            ).order_by("-approved_comment_count", "-created_at")
+
+        # Default: newest posts
         return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        
-        # This logic for the hero section and sidebar is already correct
+
+        # ==============================================================
+        # === Featured Post (Admin picks first, fallback to smart pick)
+        # ==============================================================
+        featured_post = Post.objects.filter(is_featured=True).first()
+
+        if not featured_post:
+            featured_post = Post.objects.annotate(
+                approved_comment_count=Count("comments", filter=Q(comments__status="approved"))
+            ).order_by("-approved_comment_count", "-view_count").first()
+
+        context["featured_post"] = featured_post
+
+        # ==============================================================
+        # === Sidebar: Popular Posts (exclude featured post)
+        # ==============================================================
         popular_posts_query = Post.objects.annotate(
-            comment_count=Count('comments', filter=Q(comments__status='approved'))
-        ).order_by('-comment_count')
-        
-        context['featured_post'] = popular_posts_query.first()
-        context['popular_posts'] = popular_posts_query[:5]
-        context['recent_comments'] = Comment.objects.filter(status='approved').order_by('-created_at')[:5]
-        
+            approved_comment_count=Count("comments", filter=Q(comments__status="approved"))
+        ).order_by("-approved_comment_count", "-view_count")
+
+        if featured_post:
+            popular_posts_query = popular_posts_query.exclude(pk=featured_post.pk)
+
+        context["popular_posts"] = popular_posts_query[:5]
+
+        # Latest 5 approved comments
+        context["recent_comments"] = Comment.objects.filter(
+            status="approved"
+        ).order_by("-created_at")[:5]
+
         return context
-from django.db.models import Count, Q
 
 # In blog/views.py
 
 # blog/views.py
+
+from django.db.models import F, Q, Count
 from django.views.generic import DetailView
-from django.db.models import Count, Q
-from .models import Post, Comment
+from .models import Post
 from .forms import CommentForm
 
 class PostDetailView(DetailView):
@@ -85,42 +110,59 @@ class PostDetailView(DetailView):
     template_name = "blog/post_detail.html"
     context_object_name = "post"
 
+    def get_object(self, queryset=None):
+        # This is perfect, no changes needed.
+        obj = super().get_object(queryset)
+        Post.objects.filter(pk=obj.pk).update(view_count=F("view_count") + 1)
+        obj.refresh_from_db()
+        return obj
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         post = self.get_object()
         user = self.request.user
 
-        # --- Sorting Logic ---
-        sort_option = self.request.GET.get("sort", "newest")
-        all_comments = post.comments.select_related("author").prefetch_related("upvotes", "downvotes", "replies")
-
-        if sort_option == "top":
-            comments = all_comments.annotate(
-                score=Count("upvotes") - Count("downvotes")
-            ).order_by("-score", "-created_at")
-        elif sort_option == "oldest":
-            comments = all_comments.order_by("created_at")
-        else:  # newest
-            comments = all_comments.order_by("-created_at")
-
-        # --- Visibility Filtering ---
+        # Your visibility rules are perfect.
         if user.is_authenticated:
-            visible_comments = comments.filter(Q(status="approved") | Q(author=user)).distinct()
+            visibility_filter = Q(status="approved") | Q(author=user)
         else:
-            visible_comments = comments.filter(status="approved")
+            visibility_filter = Q(status="approved")
 
-        # --- Precompute voting status ---
+        # =========================================================================
+        # === THE FINAL FIX: Apply the filter to the replies using Prefetch ===
+        # =========================================================================
+        
+        # 1. Create a Prefetch object that fetches ONLY the visible replies.
+        visible_replies_prefetch = Prefetch(
+            'replies',
+            queryset=Comment.objects.filter(visibility_filter).select_related('author__profile'),
+            to_attr='visible_replies' # Store the filtered replies in a new attribute
+        )
+
+        # 2. Get the base queryset of top-level comments, applying our new prefetch.
+        all_visible_comments = (
+            post.comments.filter(parent__isnull=True) # Start with top-level only
+            .filter(visibility_filter)
+            .select_related("author__profile")
+            .prefetch_related("upvotes", "downvotes", visible_replies_prefetch)
+        )
+
+        # The rest of your code is perfect and works on this corrected base query.
+        sort_option = self.request.GET.get("sort", "newest")
+        if sort_option == "top":
+            comments = all_visible_comments.annotate(score=Count("upvotes") - Count("downvotes")).order_by("-score", "-created_at")
+        elif sort_option == "oldest":
+            comments = all_visible_comments.order_by("created_at")
+        else:
+            comments = all_visible_comments.order_by("-created_at")
+
         if user.is_authenticated:
-            for comment in visible_comments:
+            # This loop is also fine, as it runs on the final sorted list.
+            for comment in comments:
                 comment.user_has_upvoted = comment.upvotes.filter(pk=user.pk).exists()
                 comment.user_has_downvoted = comment.downvotes.filter(pk=user.pk).exists()
-        else:
-            for comment in visible_comments:
-                comment.user_has_upvoted = False
-                comment.user_has_downvoted = False
 
-        # --- Context ---
-        context["comments"] = visible_comments.filter(parent__isnull=True)
+        context["comments"] = comments
         context["form"] = CommentForm()
         context["sort"] = sort_option
         return context
@@ -182,16 +224,40 @@ def comment_action(request):
 def sort_comments(request, pk):
     post = get_object_or_404(Post, pk=pk)
     user = request.user
+
+    # =========================================================================
+    # === THIS IS THE FIX: We now use the same secure logic as the DetailView ===
+    # =========================================================================
+
+    # 1. Define the visibility rules, just like in PostDetailView.
+    if user.is_authenticated:
+        visibility_filter = Q(status="approved") | Q(author=user)
+    else:
+        visibility_filter = Q(status="approved")
+
+    # 2. Use the secure Prefetch object to fetch ONLY visible replies.
+    visible_replies_prefetch = Prefetch(
+        'replies',
+        queryset=Comment.objects.filter(visibility_filter).select_related('author__profile'),
+        to_attr='visible_replies'
+    )
+
+    # 3. Get the base queryset of visible, top-level comments, applying the prefetch.
+    all_visible_comments = (
+        post.comments.filter(parent__isnull=True)
+        .filter(visibility_filter)
+        .select_related("author__profile")
+        .prefetch_related("upvotes", "downvotes", visible_replies_prefetch)
+    )
+
+    # 4. Apply the sorting to this secure and correct base query.
     sort_option = request.GET.get("sort", "newest")
-
-    all_comments = post.comments.filter(parent__isnull=True).select_related("author__profile").prefetch_related("upvotes", "downvotes", "replies")
-
     if sort_option == "top":
-        comments = all_comments.annotate(score=Count("upvotes") - Count("downvotes")).order_by("-score", "-created_at")
+        comments = all_visible_comments.annotate(score=Count("upvotes") - Count("downvotes")).order_by("-score", "-created_at")
     elif sort_option == "oldest":
-        comments = all_comments.order_by("created_at")
-    else:  # newest
-        comments = all_comments.order_by("-created_at")
+        comments = all_visible_comments.order_by("created_at")
+    else: # "newest"
+        comments = all_visible_comments.order_by("-created_at")
 
     # Pre-calculate vote status for the user
     if user.is_authenticated:
@@ -199,18 +265,11 @@ def sort_comments(request, pk):
             comment.user_has_upvoted = comment.upvotes.filter(pk=user.pk).exists()
             comment.user_has_downvoted = comment.downvotes.filter(pk=user.pk).exists()
 
+    # The rest of the view is correct.
     context = {"comments": comments, "user": user, "post": post}
     html = render_to_string("blog/includes/comment_list.html", context, request=request)
     return JsonResponse({"html": html})
-def get_comments_html(request, pk):
-    post = get_object_or_404(Post, pk=pk)
-    # We use the same sorting and filtering logic as your PostDetailView
-    # to ensure consistency.
-    all_comments = post.comments.filter(parent__isnull=True).order_by('-created_at') # Default to newest
-    context = {"comments": all_comments, "user": request.user, "post": post}
-    html = render_to_string("blog/includes/comment_list.html", context, request=request)
-    return JsonResponse({"html": html})
-@login_required
+
 @require_POST
 def reply_comment(request):
     if not request.headers.get("x-requested-with") == "XMLHttpRequest":
@@ -474,6 +533,21 @@ def dashboard(request):
             }
     
     return render(request, 'blog/dashboard.html', context)
+def get_featured_post():
+    # Get posts from last 7 days for freshness
+    recent_date = datetime.now() - timedelta(days=7)
+    
+    return Post.objects.filter(
+        created_at__gte=recent_date,
+        status='published'  # assuming you have status field
+    ).annotate(
+        comment_count=Count('comment'),
+        engagement_score=(
+            Count('comment') * 3 +  # Comments are worth 3 points
+            Count('upvotes') * 1 +  # Upvotes worth 1 point
+            F('view_count') * 0.1   # Views worth 0.1 points
+        )
+    ).order_by('-engagement_score', '-created_at').first()
 
 
 @login_required
@@ -509,6 +583,10 @@ def admin_dashboard(request):
     recent_posts = Post.objects.order_by("-created_at")[:5]
     recent_approved_comments = Comment.objects.filter(status="approved").order_by("-created_at")[:5]
 
+    # === NEW FEATURED POST LOGIC ===
+    all_posts = Post.objects.all()
+    currently_featured_post = Post.objects.filter(is_featured=True).first()
+
     return render(request, "blog/admin_dashboard.html", {
         "stats": stats,
         "potential_authors": potential_authors,
@@ -517,7 +595,32 @@ def admin_dashboard(request):
         "moderation_queue": moderation_queue,
         "recent_posts": recent_posts,
         "recent_approved_comments": recent_approved_comments,
+        "all_posts": all_posts,  # <--- Added
+        "currently_featured_post": currently_featured_post,  # <--- Added
     })
+@login_required
+@require_POST # This view only accepts POST requests
+def set_featured_post(request):
+    if not request.user.is_superuser:
+        return HttpResponseForbidden()
+
+    post_id = request.POST.get('post_id')
+    action = request.POST.get('action')
+
+    try:
+        post = Post.objects.get(pk=post_id)
+        if action == 'feature':
+            post.is_featured = True
+            post.save() # The magic save() method will handle un-featuring others
+            messages.success(request, f'"{post.title}" is now the featured post.')
+        elif action == 'unfeature':
+            post.is_featured = False
+            post.save()
+            messages.success(request, f'"{post.title}" is no longer featured.')
+    except Post.DoesNotExist:
+        messages.error(request, 'The selected post does not exist.')
+    
+    return redirect('admin_dashboard')
 @login_required
 def ban_user(request):
     if request.method == "POST" and request.user.is_staff:

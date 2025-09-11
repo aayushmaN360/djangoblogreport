@@ -18,12 +18,44 @@ class Genre(models.Model):
     name = models.CharField(max_length=100, unique=True);
     def __str__(self): return self.name
 
-class Post(models.Model):
-    title = models.CharField(max_length=200); genre = models.ForeignKey(Genre, on_delete=models.SET_NULL, null=True, blank=True); content = RichTextField(); photo = models.ImageField(upload_to='post_photos/', blank=True, null=True); author = models.ForeignKey(User, on_delete=models.CASCADE); created_at = models.DateTimeField(default=timezone.now); updated_at = models.DateTimeField(auto_now=True)
-    class Meta: ordering = ['-created_at']
-    def __str__(self): return self.title
-    def get_absolute_url(self): return reverse('post_detail', kwargs={'pk': self.pk})
 
+class Post(models.Model):
+    title = models.CharField(max_length=200)
+    genre = models.ForeignKey("Genre", on_delete=models.SET_NULL, null=True, blank=True)
+    content = RichTextField()
+    photo = models.ImageField(upload_to='post_photos/', blank=True, null=True)
+    author = models.ForeignKey(User, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    # === VIEW COUNT FIELD ===
+    view_count = models.PositiveIntegerField(
+        default=0,
+        help_text="This field is automatically updated."
+    )
+
+    # === FEATURED FIELD ===
+    is_featured = models.BooleanField(
+        default=False,
+        help_text="Set to True to make this the single featured post on the homepage."
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.title
+
+    def get_absolute_url(self):
+        return reverse('post_detail', kwargs={'pk': self.pk})
+
+    # === CUSTOM SAVE METHOD TO ENFORCE SINGLE FEATURED POST ===
+    def save(self, *args, **kwargs):
+        if self.is_featured:
+            # Un-feature all other posts
+            Post.objects.filter(is_featured=True).exclude(pk=self.pk).update(is_featured=False)
+        super(Post, self).save(*args, **kwargs)
+        
 class Comment(models.Model):
     STATUS_CHOICES = (('approved', 'Approved'), ('pending_review', 'Pending Review'), ('reported', 'Reported'), ('rejected', 'Rejected'))
     post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='comments'); author = models.ForeignKey(User, on_delete=models.CASCADE); text = models.TextField(); created_at = models.DateTimeField(default=timezone.now); parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='replies'); upvotes = models.ManyToManyField(User, related_name='comment_upvotes', blank=True); downvotes = models.ManyToManyField(User, related_name='comment_downvotes', blank=True); status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='approved'); toxicity_label = models.CharField(max_length=50, null=True, blank=True); is_edited = models.BooleanField(default=False)
