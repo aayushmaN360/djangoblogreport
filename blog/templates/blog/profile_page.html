@@ -1,57 +1,212 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block content %}
-<div class="profile-page">
-    <!-- Profile Banner and Avatar (Suggestion #3) -->
-    <div class="profile-banner">
-        <img src="{{ profile_user.profile.image.url }}" class="profile-avatar" alt="{{ profile_user.username }}">
+<div class="container py-4">
+  <div class="profile-page">
 
-    </div>
+    <!-- ============================================= -->
+    <!-- === BEAUTIFIED BANNER & AVATAR === -->
+    <!-- ============================================= -->
+    <div class="profile-header mb-5">
+      <div class="profile-banner position-relative overflow-hidden" 
+           style="background-image: 
+                  linear-gradient(135deg, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.55) 100%), 
+                  url('{% static "images/default_banner1.jpg" %}');
+                  background-size: cover;
+                  background-position: center;
+                  height: 280px;
+                  border-radius: 20px;">
+        <div class="position-absolute top-0 start-0 w-100 h-100" 
+             style="background-image: radial-gradient(circle at 25% 60%, rgba(255,255,255,0.15) 1px, transparent 1px);
+                    background-size: 40px 40px;"></div>
+      </div>
 
-    <div class="profile-header text-center">
-        <h1 class="display-5">{{ profile_user.username }}</h1>
-        <p class="text-muted">Member since {{ profile_user.date_joined|date:"F Y" }}</p>
-        {% if profile_user.profile.bio %}<p class="lead">{{ profile_user.profile.bio }}</p>{% endif %}
+      <div class="profile-header-content text-center position-relative" style="margin-top: -90px;">
+        <!-- Avatar -->
+        <div class="position-relative d-inline-block">
+          <img src="{{ profile_user.profile.image.url }}" 
+               alt="{{ profile_user.username }}" 
+               class="profile-avatar border border-4 border-white shadow-lg"
+               style="width: 170px; height: 170px; border-radius: 50%; object-fit: cover;">
+          <div class="position-absolute top-0 start-0 w-100 h-100 rounded-circle"
+               style="border: 4px solid rgba(102, 126, 234, 0.4); margin: -4px; border-radius: 50%;"></div>
+        </div>
 
-        <!-- Hide Action Button if Not the Owner (Suggestion #2) -->
-        {% if user == profile_user %}
-            <a class="btn btn-primary" href="{% url 'dashboard' %}"><i class="bi bi-pencil-square"></i> Go to Dashboard to Edit</a>
+        <h1 class="fw-bold mt-4 mb-2 text-dark display-5">
+          {{ profile_user.username }}
+        </h1>
+
+        {% if profile_user.profile.bio %}
+          <p class="text-muted fst-italic fs-5 mb-3 mx-auto" style="max-width: 650px; line-height: 1.7;">
+            "{{ profile_user.profile.bio }}"
+          </p>
         {% endif %}
+
+        <div class="d-flex align-items-center justify-content-center text-muted mb-4">
+          <i class="bi bi-calendar-event me-2"></i>
+          <span class="fw-medium">Joined {{ profile_user.date_joined|date:"F Y" }}</span>
+        </div>
+
+        <!-- Social links -->
+        <div class="profile-social-links mb-4">
+          {% if profile_user.profile.website_url %}
+            <a href="{{ profile_user.profile.website_url }}" target="_blank" rel="noopener" 
+               class="btn btn-outline-primary btn-sm rounded-pill mx-2 px-4 fw-semibold shadow-sm social-btn">
+              <i class="bi bi-link-45deg me-1"></i> Website
+            </a>
+          {% endif %}
+          {% if profile_user.profile.twitter_handle %}
+            <a href="https://twitter.com/{{ profile_user.profile.twitter_handle }}" target="_blank" rel="noopener" 
+               class="btn btn-outline-info btn-sm rounded-pill mx-2 px-4 fw-semibold shadow-sm social-btn">
+              <i class="bi bi-twitter me-1"></i> Twitter
+            </a>
+          {% endif %}
+          {% if profile_user.profile.github_username %}
+            <a href="https://github.com/{{ profile_user.profile.github_username }}" target="_blank" rel="noopener" 
+               class="btn btn-outline-dark btn-sm rounded-pill mx-2 px-4 fw-semibold shadow-sm social-btn">
+              <i class="bi bi-github me-1"></i> GitHub
+            </a>
+          {% endif %}
+        </div>
+
+        {% if user == profile_user %}
+          <a class="btn btn-primary rounded-pill px-4 py-2 fw-semibold shadow"
+             href="{% url 'dashboard' %}"
+             style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none;">
+            <i class="bi bi-pencil-square me-2"></i> Edit Profile
+          </a>
+        {% endif %}
+      </div>
     </div>
 
-    <hr class="my-4">
+    <!-- ============================================= -->
+    <!-- === POSTS & COMMENTS TABS === -->
+    <!-- ============================================= -->
+    <div class="card border-0 shadow-lg" style="border-radius: 20px; overflow: hidden;">
+      <div class="card-header bg-white border-bottom-0 p-0">
+        <ul class="nav nav-pills nav-fill" id="profileTab" role="tablist" style="padding: 1.5rem;">
+          <li class="nav-item">
+            <button class="nav-link active rounded-pill px-4 py-3 fw-semibold"
+                    id="posts-tab" data-bs-toggle="tab" data-bs-target="#posts-content" type="button">
+              <i class="bi bi-file-earmark-text me-2"></i> Posts ({{ posts.count }})
+            </button>
+          </li>
+          <li class="nav-item">
+            <button class="nav-link rounded-pill px-4 py-3 fw-semibold"
+                    id="comments-tab" data-bs-toggle="tab" data-bs-target="#comments-content" type="button">
+              <i class="bi bi-chat-dots me-2"></i> Comments ({{ comments.count }})
+            </button>
+          </li>
+        </ul>
+      </div>
 
-    <!-- Tabs for Posts and Comments (Suggestion #4) -->
-    <ul class="nav nav-tabs justify-content-center" id="profileTab" role="tablist">
-        <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="posts-tab" data-bs-toggle="tab" data-bs-target="#posts" type="button">Posts ({{ posts.count }})</button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="comments-tab" data-bs-toggle="tab" data-bs-target="#comments" type="button">Comments ({{ comments.count }})</button>
-        </li>
-    </ul>
+      <div class="card-body p-4">
+        <div class="tab-content" id="profileTabContent">
 
-    <div class="tab-content mt-4" id="profileTabContent">
-        <!-- Posts Tab -->
-        <div class="tab-pane fade show active" id="posts" role="tabpanel">
-            <div class="list-group">
-            {% for post in posts %}
-                <a href="{{ post.get_absolute_url }}" class="list-group-item list-group-item-action">{{ post.title }}</a>
-            {% empty %}
-                <p class="text-center text-muted">This user has not created any posts yet.</p>
-            {% endfor %}
+          <!-- Posts -->
+          <div class="tab-pane fade show active" id="posts-content" role="tabpanel">
+            <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+              {% for post in posts %}
+                <div class="col">
+                  <div class="card h-100 border-0 shadow-sm post-card">
+                    {% if post.photo %}
+                      <div class="position-relative overflow-hidden">
+                        <a href="{% url 'post_detail' post.pk %}">
+                          <img src="{{ post.photo.url }}" class="card-img-top" alt="{{ post.title }}"
+                               style="height: 220px; object-fit: cover;">
+                        </a>
+                      </div>
+                    {% endif %}
+                    <div class="card-body p-4">
+                      <span class="badge rounded-pill mb-2 px-3 py-2 fw-bold text-white"
+                            style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); font-size: 0.8rem;">
+                        {{ post.genre.name|default:"General" }}
+                      </span>
+                      <h5 class="card-title fw-bold mb-0">
+                        <a href="{% url 'post_detail' post.pk %}" 
+                           class="text-decoration-none text-dark stretched-link">
+                          {{ post.title }}
+                        </a>
+                      </h5>
+                    </div>
+                  </div>
+                </div>
+              {% empty %}
+                <div class="col-12 text-center text-muted py-5">
+                  <i class="bi bi-journal-x display-3 mb-3 opacity-25"></i>
+                  <h4>No posts yet</h4>
+                  <p>{{ profile_user.username }} hasn’t written any posts yet.</p>
+                </div>
+              {% endfor %}
             </div>
-        </div>
-        <!-- Comments Tab -->
-        <div class="tab-pane fade" id="comments" role="tabpanel">
+          </div>
+
+          <!-- Compact Comments -->
+          <div class="tab-pane fade" id="comments-content" role="tabpanel">
             <div class="list-group">
-            {% for comment in comments %}
-                <a href="{% url 'post_detail' comment.post.pk %}#comment-{{comment.pk}}" class="list-group-item list-group-item-action">"{{ comment.text|truncatewords:15 }}"</a>
-            {% empty %}
-                <p class="text-center text-muted">This user has not made any approved comments yet.</p>
-            {% endfor %}
+              {% for comment in comments %}
+                <div class="list-group-item border-0 border-bottom py-3 px-2 comment-item">
+                  <p class="mb-1 fst-italic text-dark">“{{ comment.text }}”</p>
+                  <div class="d-flex justify-content-between align-items-center small text-muted">
+                    <span>
+                      <i class="bi bi-arrow-return-right me-1"></i>
+                      On <a href="{% url 'post_detail' comment.post.pk %}#comment-{{ comment.pk }}" 
+                            class="fw-semibold text-decoration-none">{{ comment.post.title }}</a>
+                    </span>
+                    <span>{{ comment.created_at|timesince }} ago</span>
+                  </div>
+                </div>
+              {% empty %}
+                <div class="text-center text-muted py-5">
+                  <i class="bi bi-chat-square-text display-3 mb-3 opacity-25"></i>
+                  <h4>No comments yet</h4>
+                  <p>{{ profile_user.username }} hasn’t commented yet.</p>
+                </div>
+              {% endfor %}
             </div>
+          </div>
+
         </div>
+      </div>
     </div>
+
+  </div>
 </div>
+
+<!-- CSS Tweaks -->
+<style>
+.post-card {
+  border-radius: 16px;
+  transition: all 0.3s ease;
+}
+.post-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 25px rgba(0,0,0,0.15) !important;
+}
+.comment-item {
+  transition: background-color 0.2s ease;
+}
+.comment-item:hover {
+  background-color: #f8f9fa;
+}
+.profile-social-links a {
+  transition: all 0.3s ease;
+}
+.profile-social-links a:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+}
+.nav-pills .nav-link {
+  color: #6c757d;
+}
+.nav-pills .nav-link.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+}
+.nav-pills .nav-link:hover:not(.active) {
+  background: rgba(102, 126, 234, 0.1);
+  color: #667eea;
+}
+</style>
 {% endblock %}

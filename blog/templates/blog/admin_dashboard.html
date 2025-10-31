@@ -3,152 +3,172 @@
 {% block title %}Admin Dashboard{% endblock %}
 
 {% block content %}
-<div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+<div class="container py-5">
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-5">
         <h1 class="h2 fw-bold"><i class="bi bi-speedometer2 me-2"></i>Admin Dashboard</h1>
     </div>
 
-    <!-- Stat Cards -->
-    <div class="row g-4">
+    <!-- Stat Cards Row -->
+    <div class="row g-4 mb-4">
         <div class="col-lg-3 col-md-6">
-            <div class="card shadow-sm text-center h-100">
+            <div class="card shadow-sm text-center h-100 border-0 rounded-4">
                 <div class="card-body">
-                    <h5 class="card-title text-muted">Total Posts</h5>
-                    <p class="card-text fs-2 fw-bold">{{ stats.total_posts }}</p>
+                    <h6 class="text-muted">Total Posts</h6>
+                    <p class="fs-2 fw-bold">{{ stats.total_posts }}</p>
                 </div>
             </div>
         </div>
         <div class="col-lg-3 col-md-6">
-            <div class="card shadow-sm text-center h-100">
+            <div class="card shadow-sm text-center h-100 border-0 rounded-4">
                 <div class="card-body">
-                    <h5 class="card-title text-muted">Total Comments</h5>
-                    <p class="card-text fs-2 fw-bold">{{ stats.total_comments }}</p>
+                    <h6 class="text-muted">Total Comments</h6>
+                    <p class="fs-2 fw-bold">{{ stats.total_comments }}</p>
                 </div>
             </div>
         </div>
         <div class="col-lg-3 col-md-6">
-            <div class="card shadow-sm text-center h-100">
+            <div class="card shadow-sm text-center h-100 border-0 rounded-4">
                 <div class="card-body">
-                    <h5 class="card-title text-muted">Total Users</h5>
-                    <p class="card-text fs-2 fw-bold">{{ stats.total_users }}</p>
+                    <h6 class="text-muted">Total Users</h6>
+                    <p class="fs-2 fw-bold">{{ stats.total_users }}</p>
                 </div>
             </div>
         </div>
         <div class="col-lg-3 col-md-6">
-            <div class="card shadow-sm text-center h-100">
+            <div class="card shadow-sm text-center h-100 border-0 rounded-4">
                 <div class="card-body">
-                    <h5 class="card-title text-muted">Posts with Photos</h5>
-                    <p class="card-text fs-2 fw-bold">{{ stats.posts_with_photos }}</p>
+                    <h6 class="text-muted">Posts with Photos</h6>
+                    <p class="fs-2 fw-bold">{{ stats.posts_with_photos }}</p>
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- Highlighted Cards Row -->
+    <div class="row g-4 mb-4">
         <div class="col-lg-3 col-md-6">
             <a href="{% url 'admin_comments' %}" class="text-decoration-none">
-                <div class="card shadow-sm text-center h-100 bg-warning text-dark">
+                <div class="card shadow-sm text-center h-100 bg-warning text-dark border-0 rounded-4">
                     <div class="card-body">
-                        <h5 class="card-title">Comments to Moderate</h5>
-                        <p class="card-text fs-2 fw-bold">{{ stats.comments_to_moderate_count }}</p>
+                        <h6 class="card-title">Comments to Moderate</h6>
+                        <p class="fs-2 fw-bold">{{ stats.comments_to_moderate_count }}</p>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="col-lg-3 col-md-6">
+            <a href="{% url 'admin_inquiries' %}" class="text-decoration-none">
+                <div class="card shadow-sm text-center h-100 bg-info text-dark border-0 rounded-4">
+                    <div class="card-body">
+                        <h6 class="card-title">New User Inquiries</h6>
+                        <p class="fs-2 fw-bold">{{ stats.new_inquiries_count }}</p>
                     </div>
                 </div>
             </a>
         </div>
     </div>
 
-    <!-- ✅ Assign Author Role Tool -->
-    <div class="card shadow-sm mt-4">
-        <div class="card-header bg-white">
-            <h5 class="mb-0 fw-bold"><i class="bi bi-person-plus-fill text-success me-2"></i>Assign Author Role</h5>
+    <!-- Assign Author & Ban User Row -->
+    <div class="row g-4 mb-4">
+        <!-- Assign Author -->
+        <div class="col-lg-6">
+            <div class="card shadow-sm border-0 rounded-4">
+                <div class="card-header bg-white fw-bold">
+                    <i class="bi bi-person-plus-fill text-success me-2"></i>Assign Author Role
+                </div>
+                <div class="card-body">
+                    {% if potential_authors %}
+                        <form method="post" action="{% url 'assign_author_role' %}">
+                            {% csrf_token %}
+                            <div class="input-group">
+                                <select class="form-select" name="user_id" required>
+                                    <option value="" selected disabled>Select a user to promote...</option>
+                                    {% for user in potential_authors %}
+                                        <option value="{{ user.pk }}">{{ user.username }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button class="btn btn-success" type="submit">Promote</button>
+                            </div>
+                        </form>
+                    {% else %}
+                        <div class="alert alert-info mb-0">All non-admin users are already authors.</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Ban User -->
+        <div class="col-lg-6">
+            <div class="card shadow-sm border-0 rounded-4">
+                <div class="card-header bg-white fw-bold">
+                    <i class="bi bi-slash-circle text-danger me-2"></i>Ban a User
+                </div>
+                <div class="card-body">
+                    <form method="post" action="{% url 'ban_user' %}">
+                        {% csrf_token %}
+                        <div class="input-group">
+                            <select class="form-select" name="user_id" required>
+                                <option value="" disabled selected>Select user to ban...</option>
+                                {% for user in bannable_users %}
+                                    <option value="{{ user.pk }}">{{ user.username }}</option>
+                                {% endfor %}
+                            </select>
+                            <select class="form-select" name="duration" required>
+                                <option value="1">1 Day</option>
+                                <option value="3">3 Days</option>
+                                <option value="7" selected>7 Days</option>
+                                <option value="30">30 Days</option>
+                            </select>
+                            <button class="btn btn-danger" type="submit">Ban</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Banned Users -->
+    <div class="card shadow-sm border-0 rounded-4 mb-4">
+        <div class="card-header bg-danger text-white fw-bold">
+            <i class="bi bi-slash-circle me-2"></i>Banned Users ({{ stats.banned_users_count }})
         </div>
         <div class="card-body">
-            {% if potential_authors %}
-                <form method="post" action="{% url 'assign_author_role' %}">
-                    {% csrf_token %}
-                    <div class="input-group">
-                        <select class="form-select" name="user_id" required>
-                            <option value="" selected disabled>Select a user to promote...</option>
-                            {% for user in potential_authors %}
-                                <option value="{{ user.pk }}">{{ user.username }}</option>
-                            {% endfor %}
-                        </select>
-                        <button class="btn btn-success" type="submit">Promote to Author</button>
-                    </div>
-                </form>
+            {% if banned_users %}
+                <ul class="list-group list-group-flush">
+                    {% for user in banned_users %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            {{ user.username }}
+                            <div class="d-flex align-items-center">
+                                <span class="badge bg-danger rounded-pill">
+                                    Until {{ user.profile.comment_ban_until|date:"M d, Y H:i" }}
+                                </span>
+                                <a href="{% url 'unban_user' user.id %}" class="btn btn-sm btn-success ms-2">Unban</a>
+                            </div>
+                        </li>
+                    {% endfor %}
+                </ul>
             {% else %}
-                <div class="alert alert-info mb-0">All non-admin users are already authors.</div>
+                <p class="text-success mb-0">No banned users right now ✅</p>
             {% endif %}
         </div>
     </div>
 
-    <!-- 🚫 Ban User Tool -->
-    <div class="card shadow-sm mt-4">
-      <div class="card-header bg-white">
-        <h5 class="mb-0 fw-bold"><i class="bi bi-slash-circle text-danger me-2"></i>Ban a User</h5>
-      </div>
-      <div class="card-body">
-        <form method="post" action="{% url 'ban_user' %}">
-          {% csrf_token %}
-          <div class="input-group">
-            <select class="form-select" name="user_id" required>
-              <option value="" disabled selected>Select user to ban...</option>
-              {% for user in bannable_users %}
-                <option value="{{ user.pk }}">{{ user.username }}</option>
-              {% endfor %}
-            </select>
-            <select class="form-select" name="duration" required>
-              <option value="1">1 Day</option>
-              <option value="3">3 Days</option>
-              <option value="7" selected>7 Days</option>
-              <option value="30">30 Days</option>
-            </select>
-            <button class="btn btn-danger" type="submit">Ban</button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <!-- 🚫 Banned Users -->
-    <div class="card shadow-sm mt-4">
-      <div class="card-header bg-danger text-white">
-        <h5 class="mb-0 fw-bold"><i class="bi bi-slash-circle me-2"></i>Banned Users ({{ stats.banned_users_count }})</h5>
-      </div>
-      <div class="card-body">
-        {% if banned_users %}
-         <ul class="list-group">
-          {% for user in banned_users %}
-            <li class="list-group-item d-flex justify-content-between align-items-center">
-              {{ user.username }}
-              <div>
-                  <span class="badge bg-danger rounded-pill">
-                    Until {{ user.profile.comment_ban_until|date:"M d, Y H:i" }}
-                  </span>
-                  <a href="{% url 'unban_user' user.id %}" class="btn btn-sm btn-success ms-2">Unban</a>
-              </div>
-            </li>
-          {% endfor %}
-        </ul>
-        {% else %}
-          <p class="text-success mb-0">No banned users right now ✅</p>
-        {% endif %}
-      </div>
-    </div>
-    
-    <!-- ========================================================== -->
-    <!-- === NEW: FEATURED POST TOOL === -->
-    <!-- ========================================================== -->
-    <div class="card shadow-sm mt-4">
-        <div class="card-header bg-white">
-            <h5 class="mb-0 fw-bold"><i class="bi bi-star-fill text-warning me-2"></i>Manage Featured Post</h5>
+    <!-- Featured Post Tool -->
+    <div class="card shadow-sm border-0 rounded-4 mb-4">
+        <div class="card-header bg-white fw-bold">
+            <i class="bi bi-star-fill text-warning me-2"></i>Manage Featured Post
         </div>
         <div class="card-body">
             {% if currently_featured_post %}
-                <div class="alert alert-info d-flex justify-content-between align-items-center">
+                <div class="alert alert-info d-flex justify-content-between align-items-center mb-3">
                     <div>
                         <strong>Currently Featured:</strong>
                         <a href="{{ currently_featured_post.get_absolute_url }}" target="_blank">
                             {{ currently_featured_post.title }}
                         </a>
                     </div>
-                    <!-- Form to un-feature the current post -->
                     <form method="post" action="{% url 'set_featured_post' %}" class="d-inline">
                         {% csrf_token %}
                         <input type="hidden" name="post_id" value="{{ currently_featured_post.pk }}">
@@ -157,8 +177,6 @@
                     </form>
                 </div>
             {% endif %}
-
-            <p class="text-muted">Select a new post to feature on the homepage. This will replace any currently featured post.</p>
             <form method="post" action="{% url 'set_featured_post' %}">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="feature">
@@ -178,33 +196,30 @@
     </div>
 
     <!-- Moderation Queue -->
-    <div class="card shadow-sm mt-4">
-        <div class="card-header bg-white d-flex justify-content-between align-items-center">
-            <h5 class="mb-0 fw-bold"><i class="bi bi-exclamation-triangle-fill text-danger me-2"></i>Moderation Queue</h5>
+    <div class="card shadow-sm border-0 rounded-4 mb-4">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center fw-bold">
+            <i class="bi bi-exclamation-triangle-fill text-danger me-2"></i>Moderation Queue
             <a href="{% url 'admin_comments' %}" class="btn btn-primary btn-sm">View All →</a>
         </div>
         <div class="card-body">
             {% if moderation_queue %}
                 <ul class="list-group list-group-flush">
-                {% for comment in moderation_queue %}
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        <span>
-                            “{{ comment.text|truncatewords:15 }}”
-                            <small class="text-muted">by {{ comment.author.username }}</small>
-                        </span>
-                        <span>
-                            {% if comment.status == 'approved' %}
-                                <span class="badge bg-success">Approved</span>
-                            {% elif comment.status == 'pending_review' %}
-                                <span class="badge bg-warning text-dark">Pending</span>
-                            {% elif comment.status == 'reported' %}
-                                <span class="badge bg-danger">Reported</span>
-                            {% elif comment.status == 'rejected' %}
-                                <span class="badge bg-secondary">Rejected</span>
-                            {% endif %}
-                        </span>
-                    </li>
-                {% endfor %}
+                    {% for comment in moderation_queue %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span>“{{ comment.text|truncatewords:15 }}” 
+                                <small class="text-muted">by {{ comment.author.username }}</small>
+                            </span>
+                           <span>
+    {% if comment.report_count > 0 %}
+        <span class="badge bg-danger">
+            Reported ({{ comment.report_count }})
+        </span>
+    {% elif comment.status == 'pending_review' %}
+        <span class="badge bg-warning text-dark">AI Flagged</span>
+    {% endif %}
+</span>
+                        </li>
+                    {% endfor %}
                 </ul>
             {% else %}
                 <div class="alert alert-success mb-0">The moderation queue is empty. Great job!</div>
@@ -212,60 +227,51 @@
         </div>
     </div>
 
-    <!-- Recent Activity -->
-    <div class="row g-4 mt-3">
-        <!-- ✅ Recent Posts with Thumbnail + Comment Count -->
+    <!-- Recent Posts & Comments -->
+    <div class="row g-4">
         <div class="col-md-6">
-            <div class="card shadow-sm">
-                <div class="card-header bg-white">
-                    <h5 class="mb-0 fw-bold"><i class="bi bi-file-earmark-text me-2"></i>Recent Posts</h5>
+            <div class="card shadow-sm border-0 rounded-4">
+                <div class="card-header bg-white fw-bold">
+                    <i class="bi bi-file-earmark-text me-2"></i>Recent Posts
                 </div>
                 <div class="list-group list-group-flush">
                     {% if recent_posts %}
                         {% for post in recent_posts %}
-                            <a href="{% url 'post_detail' post.pk %}" target="_blank"
-                               class="list-group-item list-group-item-action d-flex align-items-center">
+                            <a href="{% url 'post_detail' post.pk %}" target="_blank" class="list-group-item list-group-item-action d-flex align-items-center">
                                 {% if post.photo %}
-                                    <img src="{{ post.photo.url }}" class="me-3 rounded"
-                                         style="width: 50px; height: 50px; object-fit: cover;">
+                                    <img src="{{ post.photo.url }}" class="me-3 rounded" style="width: 50px; height: 50px; object-fit: cover;">
                                 {% else %}
-                                    <div class="me-3 bg-light d-flex align-items-center justify-content-center"
-                                         style="width: 50px; height: 50px; border-radius: 4px;">
+                                    <div class="me-3 bg-light d-flex align-items-center justify-content-center" style="width: 50px; height: 50px; border-radius: 4px;">
                                         <i class="bi bi-image text-muted"></i>
                                     </div>
                                 {% endif %}
                                 <div>
                                     <div class="fw-bold">{{ post.title }}</div>
-                                    <small class="text-muted">
-                                        by {{ post.author.username }} · {{ post.approved_comment_count }} comments
-                                    </small>
+                                    <small class="text-muted">by {{ post.author.username }} · {{ post.approved_comment_count }} comments</small>
                                 </div>
                             </a>
                         {% endfor %}
                     {% else %}
-                        <p class="list-group-item">No posts yet.</p>
+                        <p class="list-group-item mb-0">No posts yet.</p>
                     {% endif %}
                 </div>
             </div>
         </div>
 
-        <!-- ✅ Recent Approved Comments -->
         <div class="col-md-6">
-            <div class="card shadow-sm">
-                <div class="card-header bg-white">
-                    <h5 class="mb-0 fw-bold"><i class="bi bi-chat-dots me-2"></i>Recent Approved Comments</h5>
+            <div class="card shadow-sm border-0 rounded-4">
+                <div class="card-header bg-white fw-bold">
+                    <i class="bi bi-chat-dots me-2"></i>Recent Approved Comments
                 </div>
                 <div class="list-group list-group-flush">
                     {% if recent_approved_comments %}
                         {% for comment in recent_approved_comments %}
-                            <a href="{% url 'post_detail' comment.post.pk %}#comment-{{ comment.pk }}"
-                               target="_blank" class="list-group-item list-group-item-action">
-                                “{{ comment.text|truncatewords:10 }}”
-                                <small class="text-muted">by {{ comment.author.username }}</small>
+                            <a href="{% url 'post_detail' comment.post.pk %}#comment-{{ comment.pk }}" target="_blank" class="list-group-item list-group-item-action">
+                                “{{ comment.text|truncatewords:10 }}” <small class="text-muted">by {{ comment.author.username }}</small>
                             </a>
                         {% endfor %}
                     {% else %}
-                        <p class="list-group-item">No approved comments yet.</p>
+                        <p class="list-group-item mb-0">No approved comments yet.</p>
                     {% endif %}
                 </div>
             </div>

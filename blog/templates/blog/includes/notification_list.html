@@ -1,0 +1,31 @@
+<!-- File: blog/templates/blog/includes/notification_list.html -->
+
+{% for notification in notifications %}
+    <li>
+        <!-- This is the smart, context-aware link -->
+        <a class="dropdown-item d-flex align-items-start {% if not notification.read %}unread-notification{% endif %}" 
+           href="{% if notification.notification_type == 'toxic_comment' %}{% url 'dashboard' %}{% else %}{% url 'post_detail' notification.comment.post.pk %}#comment-{{ notification.comment.pk }}{% endif %}">
+            
+            <!-- Icon based on notification type -->
+            <div class="me-3 mt-1">
+                {% if notification.notification_type == 'new_comment' %}
+                    <i class="bi bi-chat-left-dots-fill text-primary"></i>
+                {% elif notification.notification_type == 'new_reply' %}
+                    <i class="bi bi-reply-fill text-success"></i>
+                {% elif notification.notification_type == 'toxic_comment' %}
+                    <i class="bi bi-exclamation-triangle-fill text-warning"></i>
+                {% elif notification.notification_type == 'comment_approved' %}
+                    <i class="bi bi-check-circle-fill text-info"></i>
+                {% endif %}
+            </div>
+
+            <!-- Message and Timestamp -->
+            <div>
+                <p class="mb-0 small">{{ notification.message }}</p>
+                <small class="text-muted">{{ notification.created_at|timesince }} ago</small>
+            </div>
+        </a>
+    </li>
+{% empty %}
+    <li class="dropdown-item text-center text-muted small py-3">You have no new notifications.</li>
+{% endfor %}

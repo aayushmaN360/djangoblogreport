@@ -1,0 +1,1 @@
+Accuracy: 0.5726, Rows: 65692, Model: C:\Users\User\Desktop\projext\blogging\toxicity_blog\blog\naive_bayes_model321.pkl

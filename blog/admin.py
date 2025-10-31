@@ -150,7 +150,13 @@ class CommentAdmin(admin.ModelAdmin):
         self.message_user(request, f"🗑️ Deleted {deleted} comment(s).")
     delete_comments.short_description = "Delete selected comments"
 
+from .models import UserInquiry
 
+@admin.register(UserInquiry)
+class UserInquiryAdmin(admin.ModelAdmin):
+    list_display = ('name', 'email', 'status', 'submitted_at')
+    list_filter = ('status',)
+    readonly_fields = ('name', 'email', 'message', 'submitted_at')
 # =======================
 # Notification Admin
 # =======================

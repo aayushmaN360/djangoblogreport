@@ -2,16 +2,14 @@
 
 {% block content %}
 <div class="dashboard-layout">
-    <!-- ============================================= -->
-    <!-- === VERTICAL SIDEBAR NAVIGATION === -->
-    <!-- ============================================= -->
+   
     <div class="sidebar">
-        <div class="sidebar-header">
-            <img src="{{ user.profile.image.url }}" class="sidebar-avatar" alt="Profile Picture">
-            <h5 class="mt-2 mb-0">{{ user.username|title }}</h5>
+        <div class="sidebar-header text-center">
+            <img src="{{ user.profile.image.url }}" class="sidebar-avatar rounded-circle" alt="Profile Picture">
+            <h5 class="mt-2 mb-0 fw-semibold">{{ user.username|title }}</h5>
             <small class="text-muted">{{ user.email }}</small>
         </div>
-        <div class="list-group list-group-flush">
+        <div class="list-group list-group-flush mt-3">
             <a href="{% url 'dashboard' %}" class="list-group-item list-group-item-action active">
                 <i class="bi bi-house-door-fill me-2"></i> Overview
             </a>
@@ -30,13 +28,11 @@
         </div>
     </div>
 
-    <!-- ============================================= -->
-    <!-- === MAIN CONTENT AREA === -->
-    <!-- ============================================= -->
+    
     <div class="content-area">
         <h1 class="mb-4 fw-bold">Dashboard Overview</h1>
 
-        <!-- Tab Navigation -->
+        
         <ul class="nav nav-tabs" id="dashboardTab" role="tablist">
             {% if action_required_comments %}
                 <li class="nav-item" role="presentation">
@@ -57,14 +53,23 @@
                     Comment History
                 </button>
             </li>
+
+            
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="notifications-tab" data-bs-toggle="tab" data-bs-target="#notifications-content">
+                    Notifications 
+                    {% if unread_notifications.count > 0 %}
+                        <span class="badge bg-danger ms-1">{{ unread_notifications.count }}</span>
+                    {% endif %}
+                </button>
+            </li>
         </ul>
 
-        <!-- Tab Content -->
         <div class="card border-top-0 rounded-0 rounded-bottom shadow-sm">
             <div class="card-body">
                 <div class="tab-content" id="dashboardTabContent">
 
-                    <!-- Action Required Tab Pane -->
+                    <!-- === Action Required === -->
                     {% if action_required_comments %}
                     <div class="tab-pane fade show active" id="action" role="tabpanel">
                         <ul class="list-group list-group-flush">
@@ -78,7 +83,7 @@
                     </div>
                     {% endif %}
 
-                    <!-- My Posts Tab Pane (for Authors) -->
+                    <!-- === My Posts === -->
                     {% if is_author %}
                     <div class="tab-pane fade {% if not action_required_comments %}show active{% endif %}" id="posts" role="tabpanel">
                         <div class="list-group list-group-flush">
@@ -91,7 +96,7 @@
                     </div>
                     {% endif %}
 
-                    <!-- Comment History Tab Pane -->
+                    <!-- === Comment History === -->
                     <div class="tab-pane fade {% if not action_required_comments and not is_author %}show active{% endif %}" id="comments" role="tabpanel">
                         <div class="list-group list-group-flush">
                             {% for comment in all_comments %}
@@ -104,105 +109,124 @@
                         </div>
                     </div>
 
+                    <!-- ============================================= -->
+                    <!-- === NEW NOTIFICATIONS TAB CONTENT =========== -->
+                    <!-- ============================================= -->
+                    <div class="tab-pane fade" id="notifications-content" role="tabpanel">
+                        <ul class="list-group list-group-flush">
+                            {% for notification in notifications %}
+                                <li class="list-group-item d-flex align-items-center p-3 {% if not notification.read %}list-group-item-light fw-bold{% endif %}">
+                                    <!-- Icon based on notification type -->
+                                    <div class="me-3">
+                                        {% if notification.notification_type == 'new_comment' %}
+                                            <i class="bi bi-chat-left-dots-fill text-primary fs-4"></i>
+                                        {% elif notification.notification_type == 'new_reply' %}
+                                            <i class="bi bi-reply-fill text-success fs-4"></i>
+                                        {% elif notification.notification_type == 'toxic_comment' %}
+                                            <i class="bi bi-exclamation-triangle-fill text-warning fs-4"></i>
+                                        {% elif notification.notification_type == 'comment_approved' %}
+                                            <i class="bi bi-check-circle-fill text-info fs-4"></i>
+                                        {% endif %}
+                                    </div>
+
+                                    <!-- Message + Link -->
+                                    <div>
+                                        <a href="{% if notification.notification_type == 'toxic_comment' %}
+                                                    {% url 'dashboard' %}
+                                                  {% else %}
+                                                    {% url 'post_detail' notification.comment.post.pk %}#comment-{{ notification.comment.pk }}
+                                                  {% endif %}"
+                                           class="text-decoration-none text-dark">
+                                            {{ notification.message }}
+                                        </a>
+                                        <small class="d-block text-muted">{{ notification.created_at|timesince }} ago</small>
+                                    </div>
+                                </li>
+                            {% empty %}
+                                <li class="list-group-item text-center text-muted p-5">You have no notifications yet.</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- ============================================= -->
-<!-- === FINAL, CORRECTED PROFILE EDIT MODAL === -->
-<!-- ============================================= -->
+
 <div class="modal fade" id="profileEditModal" tabindex="-1" aria-labelledby="profileEditModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="profileEditModalLabel">Edit Your Profile</h5>
+    <div class="modal-content shadow-lg">
+      <div class="modal-header bg-light">
+        <h5 class="modal-title fw-bold" id="profileEditModalLabel">
+          <i class="bi bi-person-lines-fill me-2"></i> Edit Your Profile
+        </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
+
       <div class="modal-body">
         <form method="POST" enctype="multipart/form-data">
-            {% csrf_token %}
-            <div class="row g-4 align-items-center">
-                <!-- Left Column: Profile Picture -->
-                <div class="col-md-4 text-center">
-                    <img src="{{ user.profile.image.url }}" class="profile-pic-preview mb-3" alt="Profile Picture">
-                    <label for="id_image" class="btn btn-outline-primary btn-sm w-100"><i class="bi bi-upload"></i> Upload Picture</label>
-                    <div class="d-none">{{ p_form.image }}</div>
-                </div>
+          {% csrf_token %}
+          <div class="row g-4">
+            <!-- Profile Picture -->
+            <div class="col-md-4 text-center border-end">
+              <img src="{{ user.profile.image.url }}" class="rounded-circle img-thumbnail mb-3 profile-pic-preview" alt="Profile Picture">
+              <label for="id_image" class="btn btn-outline-primary btn-sm w-100">
+                <i class="bi bi-upload"></i> Change Picture
+              </label>
+              <div class="d-none">{{ p_form.image }}</div>
+            </div>
 
-                <!-- Right Column: Form Fields -->
-                <div class="col-md-8">
-                    <div class="mb-3">
-                        <label for="{{ u_form.username.id_for_label }}" class="form-label fw-bold">Username</label>
-                        {{ u_form.username }}
-                        {% if u_form.username.errors %}
-                            <div class="invalid-feedback d-block">{{ u_form.username.errors.as_text }}</div>
-                        {% endif %}
-                    </div>
-                    <div class="mb-3">
-                        <label for="{{ u_form.email.id_for_label }}" class="form-label fw-bold">Email</label>
-                        {{ u_form.email }}
-                        {% if u_form.email.errors %}
-                            <div class="invalid-feedback d-block">{{ u_form.email.errors.as_text }}</div>
-                        {% endif %}
-                    </div>
-                    <div class="mb-3">
-                        <label for="{{ p_form.bio.id_for_label }}" class="form-label fw-bold">Bio</label>
-                        {{ p_form.bio }}
-                    </div>
+            <!-- Profile Fields -->
+            <div class="col-md-8">
+              <div class="mb-3">
+                <label class="form-label fw-semibold"><i class="bi bi-person-circle me-1"></i> Username</label>
+                {{ u_form.username }}
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-semibold"><i class="bi bi-envelope-at me-1"></i> Email</label>
+                {{ u_form.email }}
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-semibold"><i class="bi bi-file-text me-1"></i> Bio</label>
+                {{ p_form.bio }}
+              </div>
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label fw-semibold"><i class="bi bi-github me-1"></i> GitHub</label>
+                  {{ p_form.github_username }}
                 </div>
+                <div class="col-md-6">
+                  <label class="form-label fw-semibold"><i class="bi bi-twitter-x me-1"></i> Twitter</label>
+                  {{ p_form.twitter_handle }}
+                </div>
+                <div class="col-12">
+                  <label class="form-label fw-semibold"><i class="bi bi-globe me-1"></i> Website</label>
+                  {{ p_form.website_url }}
+                </div>
+              </div>
             </div>
-            <div class="modal-footer mt-4">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button id="saveChangesBtn" class="btn btn-primary" type="submit">Save Changes</button>
-            </div>
+          </div>
+
+          <div class="modal-footer mt-4">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+              <i class="bi bi-x-circle me-1"></i> Cancel
+            </button>
+            <button id="saveChangesBtn" class="btn btn-primary" type="submit">
+              <i class="bi bi-check-circle me-1"></i> Save Changes
+            </button>
+          </div>
         </form>
       </div>
     </div>
   </div>
 </div>
 
-<!-- ============================================= -->
-<!-- === VALIDATION SCRIPT: ENABLE/DISABLE BUTTON === -->
-<!-- ============================================= -->
-<script>
-document.addEventListener("DOMContentLoaded", function () {
-    const saveBtn = document.getElementById("saveChangesBtn");
-    const usernameField = document.getElementById("id_username");
-    const emailField = document.getElementById("id_email");
 
-    function hasError(id) {
-        const errorEl = document.querySelector(`#${id} ~ .invalid-feedback`);
-        return errorEl && errorEl.innerText.trim() !== "";
-    }
-
-    function checkErrors() {
-        const hasUsernameError = hasError("id_username");
-        const hasEmailError = hasError("id_email");
-
-        if (hasUsernameError || hasEmailError) {
-            saveBtn.disabled = true;
-            saveBtn.classList.add("disabled");
-        } else {
-            saveBtn.disabled = false;
-            saveBtn.classList.remove("disabled");
-        }
-    }
-
-    checkErrors();
-
-    usernameField?.addEventListener("input", checkErrors);
-    emailField?.addEventListener("input", checkErrors);
-});
-</script>
-
-<!-- ============================================= -->
-<!-- === AUTO OPEN MODAL ON FORM VALIDATION ERROR === -->
-<!-- ============================================= -->
 {% if u_form.errors or p_form.errors %}
 <script>
-  document.addEventListener("DOMContentLoaded", function(event) {
+  document.addEventListener("DOMContentLoaded", function() {
     const editModal = new bootstrap.Modal(document.getElementById('profileEditModal'));
     editModal.show();
   });

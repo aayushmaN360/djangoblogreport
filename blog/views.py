@@ -1,6 +1,4 @@
-# blog/views.py
 
-# --- Django and Python Imports ---
 from django.shortcuts import render, get_object_or_404, redirect
 from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin, PermissionRequiredMixin
@@ -21,14 +19,18 @@ from django.views.generic import DetailView
 from django.db.models import Count, Q
 from .models import Post, Comment
 from .forms import CommentForm
+from .forms import ContactForm
+from django.template.loader import render_to_string
+# In blog/views.py -- Add these new views at the end of the file
+
+from .models import UserInquiry # Make sure UserInquiry is imported at the top
 
 
-# --- Your Application's Imports ---
-# CORRECTED: Added 'Profile' to the model imports
+
 from .models import Post, Comment, Notification, Genre, Profile 
-# CORRECTED: Combined all form imports into one line for cleanliness
+
 from .forms import PostForm, CommentForm, UserRegisterForm, UserUpdateForm, ProfileUpdateForm 
-from .ai_toxicity import toxicity_classifier # Assuming this file exists in your app
+from .ai_toxicity import toxicity_classifier 
 from django.contrib.admin.views.decorators import staff_member_required
 
 
@@ -96,14 +98,26 @@ class PostListView(ListView):
 
         return context
 
-# In blog/views.py
 
-# blog/views.py
-
-from django.db.models import F, Q, Count
-from django.views.generic import DetailView
-from .models import Post
-from .forms import CommentForm
+def ajax_post_list(request):
+    page_number = request.GET.get('page', 1)
+    posts_list = Post.objects.all().order_by('-created_at')
+    paginator = Paginator(posts_list, 6) # Use your paginate_by value
+    page_obj = paginator.get_page(page_number)
+    
+    posts_html = render_to_string(
+        'blog/includes/post_cards.html', 
+        {'page_obj': page_obj, 'user': request.user}
+    )
+    pagination_html = render_to_string(
+        'blog/includes/pagination.html', 
+        {'page_obj': page_obj, 'paginator': paginator, 'is_paginated': True}
+    )
+    
+    return JsonResponse({
+        'posts_html': posts_html,
+        'pagination_html': pagination_html,
+    })
 
 class PostDetailView(DetailView):
     model = Post
@@ -122,17 +136,11 @@ class PostDetailView(DetailView):
         post = self.get_object()
         user = self.request.user
 
-        # Your visibility rules are perfect.
         if user.is_authenticated:
-            visibility_filter = Q(status="approved") | Q(author=user)
+            visibility_filter = (Q(status='approved') & ~Q(reported_by=user)) | Q(author=user)
         else:
-            visibility_filter = Q(status="approved")
+            visibility_filter = Q(status='approved')
 
-        # =========================================================================
-        # === THE FINAL FIX: Apply the filter to the replies using Prefetch ===
-        # =========================================================================
-        
-        # 1. Create a Prefetch object that fetches ONLY the visible replies.
         visible_replies_prefetch = Prefetch(
             'replies',
             queryset=Comment.objects.filter(visibility_filter).select_related('author__profile'),
@@ -167,6 +175,44 @@ class PostDetailView(DetailView):
         context["sort"] = sort_option
         return context
 @login_required
+def admin_inquiries(request):
+    if not request.user.is_superuser:
+        messages.error(request, "You do not have permission to view this page.")
+        return redirect("post_list")
+
+    status_filter = request.GET.get('status', 'new')
+    inquiries = UserInquiry.objects.filter(status=status_filter)
+    new_inquiries_count = UserInquiry.objects.filter(status='new').count()
+
+    context = {
+        'inquiries': inquiries,
+        'new_inquiries_count': new_inquiries_count,
+        'status_filter': status_filter,
+    }
+    return render(request, 'blog/admin_inquiries.html', context)
+
+@login_required
+def update_inquiry_status(request, pk, status):
+    if not request.user.is_superuser:
+        return HttpResponseForbidden()
+    
+    inquiry = get_object_or_404(UserInquiry, pk=pk)
+    inquiry.status = status
+    inquiry.save()
+    messages.success(request, f"Inquiry from {inquiry.name} marked as {status}.")
+    return redirect('admin_inquiries')
+
+@login_required
+def delete_inquiry(request, pk):
+    if not request.user.is_superuser:
+        return HttpResponseForbidden()
+        
+    inquiry = get_object_or_404(UserInquiry, pk=pk)
+    inquiry.delete()
+    messages.success(request, f"Inquiry from {inquiry.name} has been deleted.")
+    return redirect('admin_inquiries')    
+
+@login_required
 @require_POST
 def comment_action(request):
     if not request.headers.get("x-requested-with") == "XMLHttpRequest":
@@ -174,66 +220,77 @@ def comment_action(request):
 
     comment_id = request.POST.get("comment_id")
     action = request.POST.get("action")
+    user = request.user
     comment = get_object_or_404(Comment, pk=comment_id)
 
-    # --- Upvote ---
     if action == "upvote":
-        if request.user in comment.downvotes.all():
-            comment.downvotes.remove(request.user)
-        if request.user in comment.upvotes.all():
-            comment.upvotes.remove(request.user)
+        if user in comment.downvotes.all():
+            comment.downvotes.remove(user)
+        if user in comment.upvotes.all():
+            comment.upvotes.remove(user)
         else:
-            comment.upvotes.add(request.user)
+            comment.upvotes.add(user)
 
-    # --- Downvote ---
+    
     elif action == "downvote":
-        if request.user in comment.upvotes.all():
-            comment.upvotes.remove(request.user)
-        if request.user in comment.downvotes.all():
-            comment.downvotes.remove(request.user)
+        if user in comment.upvotes.all():
+            comment.upvotes.remove(user)
+        if user in comment.downvotes.all():
+            comment.downvotes.remove(user)
         else:
-            comment.downvotes.add(request.user)
+            comment.downvotes.add(user)
 
-    # --- Delete ---
+   
     elif action == "delete":
-        if request.user == comment.author or request.user.is_superuser or request.user.is_staff:
+        if user == comment.author or user.is_superuser or user.is_staff:
             comment.delete()
             return JsonResponse({"status": "deleted"})
         else:
-            return JsonResponse({"status": "error", "message": "You are not authorized to delete this comment."})
+            return JsonResponse(
+                {"status": "error", "message": "You are not authorized to delete this comment."},
+                status=403,
+            )
 
-    # --- Report ---
     elif action == "report":
-        if request.user != comment.author:
-            comment.status = "reported"
-            comment.save()
-            return JsonResponse({"status": "reported", "message": "Comment reported for review."})
-        else:
-            return JsonResponse({"status": "error", "message": "You cannot report your own comment."})
+        if user == comment.author:
+            return JsonResponse(
+                {"status": "error", "message": "You cannot report your own comment."},
+                status=400,
+            )
 
+        # Let the model handle the logic (hide after 3 reports)
+        comment.add_report(user)
+
+        # Return a consistent response every time
+        return JsonResponse({
+            "status": "reported",
+            "message": "Your report has been submitted for review.",
+            "report_count": comment.reported_by.count(),
+            "user_has_reported": True,
+            "is_hidden": (comment.status == "hidden"),  # frontend can fade it out
+        })
+
+    
     else:
-        return JsonResponse({"status": "error", "message": "Invalid action"})
+        return JsonResponse({"status": "error", "message": "Invalid action"}, status=400)
 
-    # === THIS IS THE CRITICAL FIX FOR THE BUTTONS ===
-    # We now send back separate upvote and downvote counts, which the JavaScript is waiting for.
+    
     return JsonResponse({
         "status": "ok",
         "upvotes": comment.upvotes.count(),
         "downvotes": comment.downvotes.count(),
     })
+
 def sort_comments(request, pk):
     post = get_object_or_404(Post, pk=pk)
     user = request.user
 
-    # =========================================================================
-    # === THIS IS THE FIX: We now use the same secure logic as the DetailView ===
-    # =========================================================================
+ 
 
-    # 1. Define the visibility rules, just like in PostDetailView.
     if user.is_authenticated:
-        visibility_filter = Q(status="approved") | Q(author=user)
+        visibility_filter = (Q(status='approved') & ~Q(reported_by=user)) | Q(author=user)
     else:
-        visibility_filter = Q(status="approved")
+        visibility_filter = Q(status='approved')
 
     # 2. Use the secure Prefetch object to fetch ONLY visible replies.
     visible_replies_prefetch = Prefetch(
@@ -300,6 +357,23 @@ def reply_comment(request):
         "html": html if reply.status == "approved" else ""
     })
 
+def contacts(request):
+    """
+    Handles both displaying the contact form and processing its submission.
+    """
+    if request.method == 'POST':
+        # This block runs when the user clicks "Send Message"
+        form = ContactForm(request.POST)
+        if form.is_valid():
+            form.save() # This saves the new inquiry to the database
+            messages.success(request, "Thank you for your message! Our team will review it shortly.")
+            return redirect('contacts') # Redirect to the same page to show the success message
+    else:
+        # This block runs when the user first visits the page
+        form = ContactForm()
+
+    # Pass the form instance to the template
+    return render(request, 'blog/contacts.html', {'form': form})
 @login_required
 def assign_author_role(request):
     # Security: Only superusers can perform this action
@@ -328,8 +402,11 @@ def search_results(request):
     return render(request, 'blog/search_results.html', {'posts': posts, 'query': query})
 
 def profile_page(request, username):
-    profile_user = get_object_or_404(User, username=username)
-    Profile.objects.get_or_create(user=profile_user) # This will now work
+    profile_user = get_object_or_404(User.objects.select_related('profile'), username=username)
+
+    # The get_or_create is still a good idea for users who haven't been viewed before.
+    Profile.objects.get_or_create(user=profile_user)
+    # This will now work
     context = {
         'profile_user': profile_user,
         'posts': Post.objects.filter(author=profile_user).order_by('-created_at'),
@@ -398,98 +475,267 @@ def delete_comment(request, pk):
     return redirect('admin_comments')
 
 
-# In blog/views.py - Replace the entire add_comment function
+
+# @login_required
+# @require_POST
+# def add_comment(request, pk):
+#     post = get_object_or_404(Post, pk=pk)
+#     user = request.user
+#     is_ajax = request.headers.get("x-requested-with") == "XMLHttpRequest"
+#     new_notification_count = 0
+
+#     # === Banned User Check ===
+#     if hasattr(user, "profile") and getattr(user.profile, "is_banned", False):
+#         if is_ajax:
+#             return JsonResponse(
+#                 {"status": "error", "message": "You are temporarily banned from commenting."},
+#                 status=403
+#             )
+#         messages.error(request, "You are temporarily banned from commenting.")
+#         return redirect("post_detail", pk=post.pk)
+
+#     # === Main Comment Logic ===
+#     form = CommentForm(request.POST)
+#     if form.is_valid():
+#         comment = form.save(commit=False)
+#         comment.post = post
+#         comment.author = user
+
+#         # Handle replies
+#         parent_id = request.POST.get("parent_id")
+#         if parent_id:
+#             comment.parent = get_object_or_404(Comment, pk=parent_id, post=post)
+
+#         # Run toxicity check
+#         is_toxic, label = toxicity_classifier.predict(comment.text)
+
+#         # --- Save + Notifications ---
+#         if not is_toxic:
+#             comment.status = "approved"
+#             message = "Your comment was posted successfully."
+#             status_code = 200
+#             comment.save()
+
+#         elif label == "toxic":
+#             comment.status = "pending_review"
+#             comment.toxicity_label = label
+#             message = "Your comment was flagged and requires review."
+#             status_code = 201
+#             comment.save()
+
+#         elif label == "highly-toxic":
+#             user.profile.comment_ban_until = timezone.now() + timedelta(minutes=5)
+#             user.profile.save()
+#             message = "Highly-toxic comment rejected. You are blocked from commenting for 5 minutes."
+#             if is_ajax:
+#                 return JsonResponse({"status": "error", "message": message}, status=400)
+#             messages.error(request, message)
+#             return redirect("post_detail", pk=post.pk)
+
+       
+#         if not comment.parent and comment.status == 'approved' and post.author != user:
+#             Notification.objects.create(
+#                 user=post.author,
+#                 notification_type='new_comment',  # <-- SET TYPE
+#                 message=f"{user.username} left a new comment on your post: '{post.title}'.",
+#                 comment=comment
+#             )
+
+#         # 2. Notify the parent comment's author of a new reply.
+#         if comment.parent and comment.status == 'approved' and comment.parent.author != user:
+#             Notification.objects.create(
+#                 user=comment.parent.author,
+#                 notification_type='new_reply',  # <-- SET TYPE
+#                 message=f"{user.username} replied to your comment on '{post.title}'.",
+#                 comment=comment
+#             )
+
+#         # 3. Notify the user if their comment was flagged as toxic.
+#         if comment.status == 'pending_review':
+#             Notification.objects.create(
+#                 user=user,
+#                 notification_type='toxic_comment',  # <-- SET TYPE
+#                 message=f"Your comment on '{post.title}' requires editing.",
+#                 comment=comment
+#             )
+#             # Only calculate count for this user's AJAX response
+#             new_notification_count = Notification.objects.filter(user=user, read=False).count()
+
+#         # === AJAX Response ===
+#         if is_ajax:
+#             html = ""
+#             if comment.status in ["approved", "pending_review"]:
+#                 html = render_to_string(
+#                     "blog/includes/comment.html",
+#                     {"comment": comment, "user": user, "post": post},
+#                     request=request
+#                 )
+#             return JsonResponse({
+#                 "status": comment.status,
+#                 "message": message,
+#                 "html": html,
+#                 "new_notification_count": new_notification_count
+#             }, status=status_code)
+
+#         # === Normal (non-AJAX) Response ===
+#         messages.success(request, message)
+#         return redirect("post_detail", pk=post.pk)
+
+#     # ❌ Invalid form
+#     if is_ajax:
+#         return JsonResponse(
+#             {"status": "error", "message": "There was a problem with your submission."},
+#             status=400
+#         )
+
+#     return redirect("post_detail", pk=post.pk)
 
 @login_required
+@require_POST
 def add_comment(request, pk):
     post = get_object_or_404(Post, pk=pk)
     user = request.user
     is_ajax = request.headers.get("x-requested-with") == "XMLHttpRequest"
-    new_notification_count = 0  # Initialize notification count
 
-    if hasattr(user, "profile") and getattr(user.profile, "is_banned", False):
-        if is_ajax:
-            return JsonResponse(
-                {"status": "error", "message": "You are temporarily banned from commenting."},
-                status=403
-            )
-        messages.error(request, "You are temporarily banned from commenting.")
-        return redirect("post_detail", pk=post.pk)
+    new_notification_count = 0
+    new_notification_html = ""
+    message_for_commenter = ""
 
-    if request.method == "POST":
-        form = CommentForm(request.POST)
-        if form.is_valid():
-            comment = form.save(commit=False)
-            comment.post = post
-            comment.author = user
-
-            parent_id = request.POST.get("parent_id")
-            if parent_id:
-                comment.parent = get_object_or_404(Comment, pk=parent_id, post=post)
-
-            is_toxic, label = toxicity_classifier.predict(comment.text)
-
-            if not is_toxic:
-                comment.status = "approved"
-                comment.save()
-                message = "Your comment was posted successfully."
-                status_code = 200
-
-            elif label == "toxic":
-                comment.status = "pending_review"
-                comment.toxicity_label = label
-                comment.save()
-                Notification.objects.create(
-                    user=user,
-                    message=f"Your comment on '{post.title}' requires editing.",
-                    comment=comment
-                )
-                new_notification_count = Notification.objects.filter(user=user, read=False).count()
-                message = "Your comment was flagged and requires review. You can edit it now or in your dashboard."
-                status_code = 201
-
-            elif label == "highly-toxic":
-                user.profile.comment_ban_until = timezone.now() + timedelta(minutes=5)
-                user.profile.save()
-                message = "Highly-toxic comment rejected. You are blocked from commenting for 5 minutes."
-                if is_ajax:
-                    return JsonResponse({"status": "error", "message": message}, status=400)
-                messages.error(request, message)
-                return redirect("post_detail", pk=post.pk)
-
-            # ✅ AJAX response with notification fix
+    # === Banned user check (time-based, safer than boolean) ===
+    if hasattr(user, "profile") and getattr(user.profile, "comment_ban_until", None):
+        if user.profile.comment_ban_until and user.profile.comment_ban_until > timezone.now():
+            msg = "🚫 You are temporarily banned from commenting."
             if is_ajax:
-                html = ""
-                if comment.pk and comment.status in ["approved", "pending_review"]:
-                    html = render_to_string(
-                        "blog/includes/comment.html",
-                        {"comment": comment, "user": request.user, "post": post},
-                        request=request
-                    )
-                return JsonResponse({
-                    "status": comment.status,
-                    "message": message,
-                    "html": html,
-                    "new_notification_count": new_notification_count
-                }, status=status_code)
-
-            # Non-AJAX fallback
-            messages.success(request, message)
+                return JsonResponse({"status": "error", "message": msg}, status=403)
+            messages.error(request, msg)
             return redirect("post_detail", pk=post.pk)
 
-    # Non-POST or invalid form
-    if is_ajax:
-        return JsonResponse(
-            {"status": "error", "message": "There was a problem with your submission."},
-            status=400
+    form = CommentForm(request.POST)
+    if not form.is_valid():
+        if is_ajax:
+            return JsonResponse({"status": "error", "message": "Invalid form submission."}, status=400)
+        messages.error(request, "Invalid comment form submission.")
+        return redirect("post_detail", pk=post.pk)
+
+    # === Build comment ===
+    comment = form.save(commit=False)
+    comment.post = post
+    comment.author = user
+
+    parent_id = request.POST.get("parent_id")
+    if parent_id:
+        comment.parent = get_object_or_404(Comment, pk=parent_id, post=post)
+
+    # === Toxicity check ===
+    is_toxic, label = toxicity_classifier.predict(comment.text)
+
+    html = ""
+    status_code = 200
+    notification_recipient = None
+
+    # ---------------- CASE A: Non-toxic ----------------
+    if not is_toxic:
+        comment.status = "approved"
+        comment.save()
+        message_for_commenter = "✅ Your comment was posted successfully."
+        status_code = 200
+
+        # Notify post author or parent comment author
+        if not comment.parent and post.author != user:
+            notification_recipient = post.author
+            notif_type = "new_comment"
+            notif_message = f"{user.username} left a new comment on your post: '{post.title}'."
+        elif comment.parent and comment.parent.author != user:
+            notification_recipient = comment.parent.author
+            notif_type = "new_reply"
+            notif_message = f"{user.username} replied to your comment on '{post.title}'."
+
+        if notification_recipient:
+            notification = Notification.objects.create(
+                user=notification_recipient,
+                notification_type=notif_type,
+                message=notif_message,
+                comment=comment,
+            )
+            new_notification_html = render_to_string(
+                "blog/includes/notification_item.html",
+                {"notification": notification},
+                request=request,
+            )
+
+    # ---------------- CASE B: Toxic ----------------
+    elif label == "toxic":
+        comment.status = "pending_review"
+        comment.toxicity_label = label
+        comment.save()
+        message_for_commenter = "⚠️ Your comment was flagged and sent for review. You can edit it later."
+        status_code = 201
+
+        # Notify the commenter (self)
+        notification = Notification.objects.create(
+            user=user,
+            notification_type="toxic_comment",
+            message=f"Your comment on '{post.title}' requires editing.",
+            comment=comment,
         )
-    
+        new_notification_html = render_to_string(
+            "blog/includes/notification_item.html",
+            {"notification": notification},
+            request=request,
+        )
+
+        new_notification_count = Notification.objects.filter(user=user, read=False).count()
+
+    # ---------------- CASE C: Highly toxic ----------------
+    elif label == "highly-toxic":
+        comment.status = "rejected"
+        comment.toxicity_label = label
+        comment.save()  # Save for moderation record
+
+        user.profile.comment_ban_until = timezone.now() + timedelta(minutes=5)
+        user.profile.save()
+
+        message_for_commenter = "🚫 Highly toxic comment rejected. You are blocked from commenting for 5 minutes."
+        if is_ajax:
+            return JsonResponse({"status": "error", "message": message_for_commenter}, status=400)
+        messages.error(request, message_for_commenter)
+        return redirect("post_detail", pk=post.pk)
+
+    # === Notification count update (for all cases with recipients) ===
+    if notification_recipient:
+        new_notification_count = Notification.objects.filter(
+            user=notification_recipient, read=False
+        ).count()
+
+    # === AJAX Response ===
+    if is_ajax:
+        if comment.status in ["approved", "pending_review"]:
+            html = render_to_string(
+                "blog/includes/comment.html",
+                {"comment": comment, "user": user, "post": post},
+                request=request,
+            )
+
+        return JsonResponse(
+            {
+                "status": comment.status,
+                "message": message_for_commenter,
+                "html": html,
+                "new_notification_count": new_notification_count,
+                "new_notification_html": new_notification_html,
+            },
+            status=status_code,
+        )
+
+    # === Non-AJAX fallback ===
+    messages.success(request, message_for_commenter)
     return redirect("post_detail", pk=post.pk)
+
+
 @login_required
 def dashboard(request):
     user = request.user
 
-    # Handle the form submission
     if request.method == 'POST':
         u_form = UserUpdateForm(request.POST, instance=user)
         p_form = ProfileUpdateForm(request.POST, request.FILES, instance=user.profile)
@@ -534,7 +780,7 @@ def dashboard(request):
     
     return render(request, 'blog/dashboard.html', context)
 def get_featured_post():
-    # Get posts from last 7 days for freshness
+    
     recent_date = datetime.now() - timedelta(days=7)
     
     return Post.objects.filter(
@@ -543,12 +789,11 @@ def get_featured_post():
     ).annotate(
         comment_count=Count('comment'),
         engagement_score=(
-            Count('comment') * 3 +  # Comments are worth 3 points
-            Count('upvotes') * 1 +  # Upvotes worth 1 point
-            F('view_count') * 0.1   # Views worth 0.1 points
+            Count('comment') * 3 +  
+            Count('upvotes') * 1 +  
+            F('view_count') * 0.1   
         )
     ).order_by('-engagement_score', '-created_at').first()
-
 
 @login_required
 def admin_dashboard(request):
@@ -556,38 +801,36 @@ def admin_dashboard(request):
         messages.error(request, "You do not have permission to view this page.")
         return redirect("post_list")
 
+   
     author_group, _ = Group.objects.get_or_create(name="Authors")
-
-    # Users eligible for author promotion (non-superusers, not already authors)
     potential_authors = User.objects.filter(is_superuser=False).exclude(groups=author_group)
-
-    # All bannable users (all non-superusers, includes authors + normal users)
     bannable_users = User.objects.filter(is_superuser=False)
-
-    # All banned users (still active ban period)
     banned_users = User.objects.filter(profile__comment_ban_until__gt=timezone.now())
 
+
+    comments_to_moderate_query = Comment.objects.filter(
+        Q(status='pending_review') | Q(status='hidden')
+    ).distinct()
+    
     stats = {
         "total_posts": Post.objects.count(),
         "total_comments": Comment.objects.count(),
         "total_users": User.objects.count(),
         "posts_with_photos": Post.objects.exclude(photo="").count(),
-        "comments_to_moderate_count": Comment.objects.filter(status="pending_review").count(),
+        "comments_to_moderate_count": comments_to_moderate_query.count(),
         "banned_users_count": banned_users.count(),
+        "new_inquiries_count": UserInquiry.objects.filter(status='new').count(),
     }
 
-    moderation_queue = Comment.objects.filter(
-        status__in=["pending_review", "reported"]
-    ).order_by("-created_at")[:5]
-
+    # --- Data for dashboard sections ---
+    moderation_queue = comments_to_moderate_query.order_by("-created_at")[:5]
     recent_posts = Post.objects.order_by("-created_at")[:5]
     recent_approved_comments = Comment.objects.filter(status="approved").order_by("-created_at")[:5]
-
-    # === NEW FEATURED POST LOGIC ===
     all_posts = Post.objects.all()
     currently_featured_post = Post.objects.filter(is_featured=True).first()
 
-    return render(request, "blog/admin_dashboard.html", {
+    # --- Render page ---
+    context = {
         "stats": stats,
         "potential_authors": potential_authors,
         "bannable_users": bannable_users,
@@ -595,9 +838,12 @@ def admin_dashboard(request):
         "moderation_queue": moderation_queue,
         "recent_posts": recent_posts,
         "recent_approved_comments": recent_approved_comments,
-        "all_posts": all_posts,  # <--- Added
-        "currently_featured_post": currently_featured_post,  # <--- Added
-    })
+        "all_posts": all_posts,
+        "currently_featured_post": currently_featured_post,
+    }
+
+    return render(request, "blog/admin_dashboard.html", context)
+
 @login_required
 @require_POST # This view only accepts POST requests
 def set_featured_post(request):
@@ -642,9 +888,17 @@ def unban_user(request, user_id):
 
 @login_required
 def admin_comments(request):
-    if not request.user.is_superuser: messages.error(request, "You do not have permission to access this page."); return redirect('post_list')
-    comments_to_moderate = Comment.objects.filter(Q(status='pending_review') | Q(status='reported')).order_by('-created_at')
-    paginator = Paginator(comments_to_moderate, 10); page_obj = paginator.get_page(request.GET.get('page'))
+    if not request.user.is_superuser:
+        messages.error(request, "You do not have permission to access this page.")
+        return redirect('post_list')
+    comments_to_moderate = Comment.objects.annotate(
+        report_count=Count('reported_by')
+    ).filter(
+        Q(status='pending_review') | Q(status='hidden')
+    ).distinct().order_by('-created_at')
+    
+    paginator = Paginator(comments_to_moderate, 10)
+    page_obj = paginator.get_page(request.GET.get('page'))
     return render(request, 'blog/admin_comments.html', {'comments': page_obj})
 
 @login_required
@@ -655,8 +909,33 @@ def approve_comment(request, pk):
     messages.success(request, 'Comment approved successfully.')
     return redirect('admin_comments')
 
-
-
+@login_required
+@require_POST
+def mark_notifications_as_read(request):
+    if request.headers.get("x-requested-with") == "XMLHttpRequest":
+        # Mark all of the user's unread notifications as read
+        Notification.objects.filter(user=request.user, read=False).update(read=True)
+        return JsonResponse({'status': 'ok'})
+    return HttpResponseForbidden()
+@login_required
+def get_notification_count(request):
+    """A simple, lightweight view to return the unread notification count."""
+    if request.headers.get("x-requested-with") == "XMLHttpRequest":
+        count = Notification.objects.filter(user=request.user, read=False).count()
+        return JsonResponse({'unread_count': count})
+    return HttpResponseForbidden()
+@login_required
+def get_notifications_html(request):
+    
+    if request.headers.get("x-requested-with") == "XMLHttpRequest":
+        
+        notifications = Notification.objects.filter(user=request.user).order_by('-created_at')[:5]
+        html = render_to_string(
+            'blog/includes/notification_list.html',
+            {'notifications': notifications}
+        )
+        return JsonResponse({'html': html})
+    return HttpResponseForbidden()
 # In blog/views.py
 @login_required
 def edit_my_comment(request, pk):
@@ -696,13 +975,11 @@ def edit_my_comment(request, pk):
 
 
 def about(request):
-    """Renders the static About page."""
+   
     return render(request, 'blog/about.html')
 
-def contacts(request):
-    """Renders the static Contact page."""
-    return render(request, 'blog/contacts.html')
+
 
 def privacy(request):
-    """Renders the static Privacy Policy page."""
+   
     return render(request, 'blog/privacy.html')

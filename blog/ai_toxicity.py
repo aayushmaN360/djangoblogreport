@@ -1,14 +1,18 @@
+# File: ai_toxicity.py (FINAL HYBRID VERSION with Allowlist Logic)
 import pickle
 import numpy as np
 import re
-from collections import Counter
 from django.conf import settings
 import os
 
-class ToxicityClassifier:
+
+class _BaseToxicityClassifier:
+    """
+    This INTERNAL class loads and runs the powerful 2-class statistical model.
+    """
     def __init__(self, model_path=None):
         if model_path is None:
-            model_path = os.path.join(os.path.dirname(__file__), 'naive_bayes_model.pkl')
+            model_path = os.path.join(os.path.dirname(__file__), '2_class_naive_bayes_model.pkl') 
         
         self.NON_TOXIC_LABEL = 'non-toxic'
         self.model_loaded = False
@@ -26,14 +30,12 @@ class ToxicityClassifier:
             self.stop_words = artifacts['stop_words']
 
             self.model_loaded = True
-            print("Toxicity model loaded successfully.")
-        except FileNotFoundError:
-            print(f"ERROR: Model file not found at {model_path}. Predictions will be disabled.")
+            print(f"✅ AI Toxicity Engine loaded successfully from: {os.path.basename(model_path)}")
         except Exception as e:
-            print(f"ERROR: An unexpected error occurred while loading the model: {e}")
+            print(f"!!! AI MODEL ERROR: Could not load model file '{os.path.basename(model_path)}'. Predictions disabled. Error: {e}")
 
     def stem(self, word):
-        suffixes = ['ing', 'ly', 'ed', 's', 'es']
+        suffixes = ['ing', 'ly', 'ed', 'ion', 's', 'er', 'es', 'est']
         for suffix in suffixes:
             if word.endswith(suffix) and len(word) > len(suffix) + 2:
                 return word[:-len(suffix)]
@@ -43,53 +45,72 @@ class ToxicityClassifier:
         text = str(text).lower()
         text = re.sub(r'[^a-z\s]', '', text)
         tokens = text.split()
-        return [self.stem(w) for w in tokens if w not in self.stop_words]
+        unigrams = [self.stem(word) for word in tokens if word not in self.stop_words and len(word) > 1]
+        bigrams = ['_'.join(pair) for pair in zip(unigrams, unigrams[1:])]
+        return unigrams + bigrams
 
     def predict(self, text):
         if not self.model_loaded:
-            return False, 'clean'
+            return False, self.NON_TOXIC_LABEL
 
         tokens = self.preprocess(text)
-        
-        # --- START OF NEW, MORE INTELLIGENT LOGIC ---
-
-        # 1. Calculate the log scores for each class (same as before)
         class_scores = {c: self.priors[c] for c in self.classes}
-        for word in tokens:
+
+        for feature in tokens:
             for c in self.classes:
-                if word in self.word2idx:
-                    class_scores[c] += self.likelihoods[c][self.word2idx[word]]
+                if feature in self.word2idx:
+                    class_scores[c] += self.likelihoods[c][self.word2idx[feature]]
                 else:
-                    class_scores[c] += np.log(self.alpha / self.total_words_per_class[c])
+                    class_scores[c] += np.log(self.alpha / (self.total_words_per_class.get(c, 1) + 1))
         
-        # 2. Convert the raw log scores into probabilities (0 to 1)
-        # This is a simplified version of the "softmax" function
-        scores = np.array(list(class_scores.values()))
-        exp_scores = np.exp(scores - np.max(scores)) # Subtract max for numerical stability
-        probabilities = exp_scores / exp_scores.sum()
-        class_probabilities = {c: p for c, p in zip(self.classes, probabilities)}
-
-        # 3. Apply a threshold to make a final decision
-        # THIS IS YOUR NEW TUNING KNOB!
-        # 0.70 means we only flag if we are >70% sure it's toxic.
-        TOXICITY_THRESHOLD = 0.70 
+        predicted_label = max(class_scores, key=class_scores.get)
+        is_toxic = (predicted_label != self.NON_TOXIC_LABEL)
         
-        is_toxic = False
-        final_label = 'clean'
-        highest_toxic_prob = 0
-        
-        # Find the total probability of all toxic classes
-        total_toxic_prob = sum(prob for label, prob in class_probabilities.items() if label != self.NON_TOXIC_LABEL)
+        return is_toxic, predicted_label
 
-        if total_toxic_prob > TOXICITY_THRESHOLD:
-            is_toxic = True
-            # Find which toxic class was the most likely
-            toxic_classes = {label: prob for label, prob in class_probabilities.items() if label != self.NON_TOXIC_LABEL}
-            final_label = max(toxic_classes, key=toxic_classes.get)
 
-        # --- END OF NEW LOGIC ---
+# --- NEW: Allowlist of Positive Words ---
+SAFE_TRIGGERS = {
+    'nepal', 'beautiful', 'country', 'love', 'amazing', 'wonderful',
+    'thank you', 'thanks', 'appreciate', 'great', 'excellent'
+}
 
-        return is_toxic, final_label
+# --- Rule-Based High-Toxicity Triggers ---
+HIGHLY_TOXIC_TRIGGERS = {
+    'idiot', 'moron', 'stupid', 'dumb', 'kill yourself', 'go die',
+    'shut up', 'fuck you', 'bitch', 'asshole', 'machikney', 'muji'
+}
 
-# Singleton Instance
-toxicity_classifier = ToxicityClassifier()
+
+class MainClassifier:
+    """
+    This is the public-facing classifier. It orchestrates the hybrid approach.
+    """
+    def __init__(self):
+        self._base_classifier = _BaseToxicityClassifier()
+
+    def predict(self, text):
+        # 1️⃣ Get base model prediction
+        is_problematic, initial_label = self._base_classifier.predict(text)
+
+        if not is_problematic:
+            return False, 'non-toxic'
+
+        # 2️⃣ Allowlist safety check
+        lower_comment = text.lower()
+        safe_word_count = sum(1 for word in SAFE_TRIGGERS if word in lower_comment)
+        if safe_word_count >= 2:
+            # Comment contains enough positive/safe context words
+            return False, 'non-toxic'
+
+        # 3️⃣ Check for extreme toxicity triggers
+        for trigger in HIGHLY_TOXIC_TRIGGERS:
+            if trigger in lower_comment:
+                return True, 'highly-toxic'
+
+        # 4️⃣ Default case: moderately toxic
+        return True, 'toxic'
+
+
+# --- Final Singleton Instance ---
+toxicity_classifier = MainClassifier()

@@ -1,6 +1,6 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="auto">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -11,96 +11,139 @@
     <link rel="icon" href="{{ site_settings.favicon.url }}" />
   {% endif %}
 
-  <!-- External Stylesheets -->
+  <!-- Bootstrap & Fonts -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
 
-  <!-- Custom Styles -->
+  <!-- Custom CSS -->
   <link rel="stylesheet" href="{% static 'css/style.css' %}" />
+
+  <style>
+    .navbar .btn { font-weight: 500; }
+
+    .navbar .btn-outline-danger,
+    .navbar .btn-danger {
+      margin-top: 5px;
+      margin-bottom: 5px;
+    }
+
+    @media (max-width: 991.98px) {
+      .navbar .d-flex {
+        flex-direction: column;
+        align-items: stretch;
+        margin-bottom: 10px;
+      }
+      .navbar .d-flex input {
+        width: 100%;
+        margin-bottom: 8px;
+      }
+      .navbar .btn { width: 100%; }
+    }
+
+    /* Dark mode support */
+    @media (prefers-color-scheme: dark) {
+      body { background-color: #121212; color: #eaeaea; }
+      .navbar.bg-white { background-color: #1e1e1e !important; }
+      .navbar .nav-link { color: #eaeaea !important; }
+      .navbar .nav-link.active { color: #ff4d4d !important; }
+      .footer.bg-light { background-color: #1e1e1e !important; color: #bbb; }
+    }
+  </style>
 
   {% block extra_head %}{% endblock %}
 </head>
+
 <body>
+<body data-user-id="{{ user.id }}">
+
   <!-- Navbar -->
   <nav class="navbar navbar-expand-lg navbar-light bg-white fixed-top shadow-sm">
     <div class="container">
-      <!-- Brand -->
       <a class="navbar-brand d-flex align-items-center" href="{% url 'post_list' %}">
         {% if site_settings.logo %}
-          <img src="{{ site_settings.logo.url }}" alt="{{ site_settings.site_name }} Logo" height="35" class="me-2 rounded-circle" />
+          <img src="{{ site_settings.logo.url }}" alt="{{ site_settings.site_name }} Logo"
+               height="35" class="me-2 rounded-circle" />
         {% else %}
           <i class="bi bi-shield-check-fill me-2"></i>
         {% endif %}
         <span class="fw-bold text-danger">{{ site_settings.site_name }}</span>
       </a>
 
-      <!-- Mobile toggle -->
-      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
+              data-bs-target="#navbarNav" aria-controls="navbarNav"
+              aria-expanded="false" aria-label="Toggle navigation">
         <span class="navbar-toggler-icon"></span>
       </button>
 
-      <!-- Menu -->
       <div class="collapse navbar-collapse" id="navbarNav">
-        <ul class="navbar-nav me-auto">
+        <ul class="navbar-nav me-auto mb-2 mb-lg-0">
           <li class="nav-item">
-            <a class="nav-link {% if request.resolver_match.url_name == 'post_list' %}active{% endif %}" href="{% url 'post_list' %}">Home</a>
+            <a class="nav-link {% if request.resolver_match.url_name == 'post_list' %}active{% endif %}"
+               href="{% url 'post_list' %}">Home</a>
           </li>
-          <li class="nav-item">
-            <a class="nav-link {% if request.resolver_match.url_name == 'about' %}active{% endif %}" href="{% url 'about' %}">About</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link {% if request.resolver_match.url_name == 'privacy' %}active{% endif %}" href="{% url 'privacy' %}">Privacy</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link {% if request.resolver_match.url_name == 'contacts' %}active{% endif %}" href="{% url 'contacts' %}">Contacts</a>
-          </li>
+          <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'about' %}active{% endif %}" href="{% url 'about' %}">About</a></li>
+          <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'privacy' %}active{% endif %}" href="{% url 'privacy' %}">Privacy</a></li>
+          <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'contacts' %}active{% endif %}" href="{% url 'contacts' %}">Contacts</a></li>
         </ul>
 
         <!-- Search -->
-        <form class="d-flex me-3" method="get" action="{% url 'search_results' %}">
-          <input class="form-control me-2" type="search" name="q" placeholder="Search..." />
+        <form class="d-flex me-lg-3 mb-2 mb-lg-0" method="get" action="{% url 'search_results' %}">
+          <input class="form-control me-2" type="search" name="q" placeholder="Search..." aria-label="Search" />
           <button class="btn btn-danger rounded-circle" type="submit">
             <i class="bi bi-search"></i>
           </button>
         </form>
 
         <!-- User Menu -->
-        <ul class="navbar-nav">
+        <ul class="navbar-nav align-items-lg-center">
           {% if user.is_authenticated %}
             <!-- Notifications -->
-            <li class="nav-item notification-badge me-2">
-              <a class="nav-link" href="{% url 'dashboard' %}" title="Dashboard & Notifications">
+            <li class="nav-item dropdown notification-dropdown me-2">
+              <a class="nav-link" href="#" id="notificationDropdown" role="button"
+                 data-bs-toggle="dropdown" aria-expanded="false">
                 <i class="bi bi-bell-fill fs-5"></i>
-                <span 
-                  class="badge bg-danger rounded-pill badge-count"
-                  {% if unread_notifications_count == 0 %}style="display: none;"{% endif %}
-                >
+                <span class="badge bg-danger rounded-pill badge-count"
+                      {% if unread_notifications_count == 0 %}style="display: none;"{% endif %}>
                   {{ unread_notifications_count }}
                 </span>
               </a>
+              <ul class="dropdown-menu dropdown-menu-end notification-menu shadow-lg"
+                  aria-labelledby="notificationDropdown">
+                <li class="dropdown-header d-flex justify-content-between align-items-center">
+                  <h6 class="mb-0">Notifications</h6>
+                  <a href="{% url 'dashboard' %}" class="small">View All</a>
+                </li>
+                <li><hr class="dropdown-divider"></li>
+                <div class="notification-list">
+                  {% include 'blog/includes/notification_list.html' %}
+                </div>
+              </ul>
             </li>
 
-            <!-- Profile Dropdown -->
+            <!-- Profile -->
             <li class="nav-item dropdown">
-              <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+              <a class="nav-link dropdown-toggle" href="#" id="profileDropdown" data-bs-toggle="dropdown">
                 <i class="bi bi-person-circle fs-5"></i>
               </a>
               <ul class="dropdown-menu dropdown-menu-end">
                 <li><h6 class="dropdown-header">Welcome, {{ user.username|title }}</h6></li>
                 <li><hr class="dropdown-divider" /></li>
-                <li><a class="dropdown-item" href="{% url 'profile_page' username=user.username %}"><i class="bi bi-person-fill me-2"></i>My Profile</a></li>
-                <li><a class="dropdown-item" href="{% url 'dashboard' %}"><i class="bi bi-speedometer2 me-2"></i>Dashboard</a></li>
+                <li><a class="dropdown-item" href="{% url 'profile_page' username=user.username %}">
+                  <i class="bi bi-person-fill me-2"></i>My Profile</a></li>
+                <li><a class="dropdown-item" href="{% url 'dashboard' %}">
+                  <i class="bi bi-speedometer2 me-2"></i>Dashboard</a></li>
                 {% if perms.blog.add_post %}
-                  <li><a class="dropdown-item" href="{% url 'post_create' %}"><i class="bi bi-plus-circle me-2"></i>Create Post</a></li>
+                  <li><a class="dropdown-item" href="{% url 'post_create' %}">
+                    <i class="bi bi-plus-circle me-2"></i>Create Post</a></li>
                 {% endif %}
                 {% if user.is_superuser %}
-                  <li><a class="dropdown-item" href="{% url 'admin_dashboard' %}"><i class="bi bi-gear-fill me-2"></i>Admin Tools</a></li>
+                  <li><a class="dropdown-item" href="{% url 'admin_dashboard' %}">
+                    <i class="bi bi-gear-fill me-2"></i>Admin Tools</a></li>
                 {% endif %}
                 <li><hr class="dropdown-divider" /></li>
                 <li>
-                  <form method="post" action="{% url 'logout' %}">
-                    {% csrf_token %}
+                  <form method="post" action="{% url 'logout' %}">{% csrf_token %}
                     <button type="submit" class="dropdown-item">
                       <i class="bi bi-box-arrow-right me-2"></i>Logout
                     </button>
@@ -108,20 +151,21 @@
                 </li>
               </ul>
             </li>
+
           {% else %}
-            <li class="nav-item"><a class="nav-link" href="{% url 'login' %}">Login</a></li>
-            <li class="nav-item"><a class="btn btn-danger ms-2" href="{% url 'register' %}">Join Us</a></li>
+            <li class="nav-item"><a class="btn btn-outline-danger me-2" href="{% url 'login' %}">Login</a></li>
+            <li class="nav-item"><a class="btn btn-danger" href="{% url 'register' %}">Join Us</a></li>
           {% endif %}
         </ul>
       </div>
     </div>
   </nav>
 
-  <!-- Main -->
-  <main class="container py-4">
+  <!-- Main Content -->
+  <main class="container py-4" id="main-content">
     {% if messages %}
       {% for message in messages %}
-        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
           {{ message }}
           <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
@@ -131,8 +175,8 @@
   </main>
 
   <!-- Footer -->
-  <footer class="footer mt-auto py-3 bg-light border-top">
-    <div class="container text-center">
+  <footer class="footer mt-auto py-3 bg-light border-top text-center">
+    <div class="container">
       <span class="text-muted">© {% now "Y" %} {{ site_settings.site_name }}. All Rights Reserved.</span>
       <div class="mt-2">
         <a href="{% url 'about' %}">About</a> |
@@ -142,31 +186,102 @@
     </div>
   </footer>
 
-  <!-- Delete Confirmation Modal -->
-  <div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-labelledby="deleteConfirmModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="deleteConfirmModalLabel">Confirm Comment Deletion</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body">
-          Are you sure you want to delete this comment? This action cannot be undone.
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button id="confirmDeleteBtn" type="button" class="btn btn-danger">Delete</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Bootstrap JS -->
+  <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-
-  <!-- Custom JS -->
-  <script src="{% static 'blog/js/comment.js' %}"></script>
-
+  <script src="{% static 'js/comment.js' %}"></script>
+  <script src="{% static 'js/post_list.js' %}"></script>
+  
   {% block javascript %}{% endblock %}
+
+  <!-- =============================================================== -->
+  <!-- ✅ FINAL, UPGRADED LIVE NOTIFICATION SYSTEM (with HTML refresh) -->
+  <!-- =============================================================== -->
+  {% if user.is_authenticated %}
+  <script>
+  document.addEventListener('DOMContentLoaded', function () {
+      console.log("✅ Final Live Notification System Initialized.");
+
+      // --- CSRF Helper ---
+      function getCookie(name) {
+          let cookieValue = null;
+          if (document.cookie && document.cookie !== '') {
+              const cookies = document.cookie.split(';');
+              for (let cookie of cookies) {
+                  cookie = cookie.trim();
+                  if (cookie.startsWith(name + '=')) {
+                      cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                      break;
+                  }
+              }
+          }
+          return cookieValue;
+      }
+      const csrftoken = getCookie('csrftoken');
+
+      const notificationBadge = document.querySelector('.notification-dropdown .badge-count');
+      const notificationListContainer = document.querySelector('.notification-list');
+
+      // --- Fetch Updated Notification List ---
+      function fetchNotificationList() {
+          fetch("{% url 'get_notifications_html' %}", {
+              headers: { 'X-Requested-With': 'XMLHttpRequest' }
+          })
+          .then(res => res.ok ? res.json() : Promise.reject('Failed to fetch list'))
+          .then(data => {
+              if (data.html && notificationListContainer) {
+                  notificationListContainer.innerHTML = data.html;
+              }
+          })
+          .catch(err => console.error("Fetching notification list failed:", err));
+      }
+
+      // --- Poll for notification count ---
+      function checkNotifications() {
+          fetch("{% url 'get_notification_count' %}", {
+              headers: { 'X-Requested-With': 'XMLHttpRequest' }
+          })
+          .then(res => res.ok ? res.json() : Promise.reject('Failed to fetch count'))
+          .then(data => {
+              if (!data || !notificationBadge) return;
+              const currentCount = parseInt(notificationBadge.textContent || '0', 10);
+              if (data.unread_count > 0) {
+                  notificationBadge.textContent = data.unread_count;
+                  notificationBadge.style.display = 'flex';
+                  if (data.unread_count > currentCount) {
+                      notificationBadge.classList.add('new-notification');
+                      fetchNotificationList();
+                  }
+              } else {
+                  notificationBadge.style.display = 'none';
+              }
+          })
+          .catch(err => console.error("Notification poll failed:", err));
+      }
+
+      // --- Mark as Read on Dropdown Open ---
+      const dropdown = document.getElementById('notificationDropdown');
+      if (dropdown) {
+          dropdown.addEventListener('show.bs.dropdown', () => {
+              fetch("{% url 'mark_notifications_as_read' %}", {
+                  method: 'POST',
+                  headers: {
+                      'X-CSRFToken': csrftoken,
+                      'X-Requested-With': 'XMLHttpRequest'
+                  }
+              });
+              if (notificationBadge) {
+                  notificationBadge.style.display = 'none';
+                  notificationBadge.classList.remove('new-notification');
+              }
+              document.querySelectorAll('.notification-list .unread-notification')
+                      .forEach(item => item.classList.remove('unread-notification'));
+          });
+      }
+
+      checkNotifications();
+      setInterval(checkNotifications, 15000);
+  });
+  </script>
+  {% endif %}
 </body>
 </html>

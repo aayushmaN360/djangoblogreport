@@ -1,49 +1,35 @@
 {% extends "base.html" %}
+{% load static %}
+
 {% block content %}
-<div class="container">
-  <!-- ========================================================== -->
-  <!-- === HERO / FEATURED POST SECTION === -->
-  <!-- ========================================================== -->
+<div class="container my-5">
+  
   {% if featured_post %}
   <section class="hero-section mb-5">
-    <div class="hero-card-large position-relative overflow-hidden rounded-4 shadow-lg">
+    <div class="hero-card-large position-relative overflow-hidden rounded-4 shadow-lg hover-zoom">
       {% if featured_post.photo %}
       <div class="hero-bg position-absolute w-100 h-100" 
-           style="background-image: url('{{ featured_post.photo.url }}'); background-size: cover; background-position: center; background-repeat: no-repeat;">
+           style="background-image: url('{{ featured_post.photo.url }}'); background-size: cover; background-position: center; transition: transform 0.5s;">
       </div>
       {% else %}
       <div class="hero-bg position-absolute w-100 h-100" 
-           style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+           style="background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);">
       </div>
       {% endif %}
       <div class="hero-overlay position-absolute w-100 h-100 d-flex align-items-end"
-           style="background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.3) 50%, transparent 100%);">
+           style="background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 50%, transparent 100%);">
         <div class="hero-content p-5 text-white">
-          <div class="mb-3">
-            <span class="badge bg-gradient text-white px-3 py-2 rounded-pill" 
-                  style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-              <i class="bi bi-star-fill me-1"></i>
-              Featured • {{ featured_post.genre.name|default:"General" }}
-            </span>
-          </div>
+          <span class="badge bg-gradient text-white px-3 py-2 rounded-pill mb-3">
+            <i class="bi bi-star-fill me-1"></i> Featured • {{ featured_post.genre.name|default:"General" }}
+          </span>
           <h1 class="display-4 fw-bold mb-3 hero-title">{{ featured_post.title }}</h1>
-          <p class="lead mb-4 hero-excerpt opacity-90">
-            {{ featured_post.content|safe|truncatewords_html:25 }}
-          </p>
-          <div class="d-flex align-items-center mb-4">
-            <div class="d-flex align-items-center text-white-50 me-4">
-              <i class="bi bi-person-circle me-2"></i>
-              <span>{{ featured_post.author.username }}</span>
-            </div>
-            <div class="d-flex align-items-center text-white-50">
-              <i class="bi bi-calendar-event me-2"></i>
-              <span>{{ featured_post.created_at|date:"F d, Y" }}</span>
-            </div>
+          <p class="lead mb-4 hero-excerpt opacity-90">{{ featured_post.content|safe|striptags|truncatewords:25 }}</p>
+          <div class="d-flex align-items-center mb-4 text-white-50">
+            <div class="me-4"><i class="bi bi-person-circle me-2"></i>{{ featured_post.author.username }}</div>
+            <div><i class="bi bi-calendar-event me-2"></i>{{ featured_post.created_at|date:"F d, Y" }}</div>
           </div>
-          <a href="{% url 'post_detail' featured_post.pk %}" 
-             class="btn btn-lg btn-light fw-semibold px-4 py-2 rounded-pill shadow-sm hover-lift">
-            Continue Reading
-            <i class="bi bi-arrow-right ms-2"></i>
+          <a href="{% url 'post_detail' featured_post.pk %}" class="btn btn-lg btn-light fw-semibold px-4 py-2 rounded-pill shadow-sm hover-lift">
+            Continue Reading <i class="bi bi-arrow-right ms-2"></i>
           </a>
         </div>
       </div>
@@ -52,241 +38,89 @@
   {% endif %}
 
   <div class="row g-5">
-    <!-- ================== MAIN CONTENT ================== -->
+    <!-- Main Content -->
     <div class="col-lg-8">
-      <!-- Section Header -->
       <div class="section-header d-flex align-items-center justify-content-between mb-4">
         <div>
-          <h2 class="section-title fw-bold mb-2">Latest Stories</h2>
+          <h2 class="section-title fw-bold mb-2 text-dark">Latest Stories</h2>
           <p class="text-muted mb-0">Discover the most recent posts from our community</p>
         </div>
-        <div class="view-toggle d-none d-md-flex">
-          <button class="btn btn-outline-secondary btn-sm me-2 active" data-view="grid">
-            <i class="bi bi-grid-3x3-gap"></i>
-          </button>
-          <button class="btn btn-outline-secondary btn-sm" data-view="list">
-            <i class="bi bi-list"></i>
-          </button>
+        <div class="view-toggle d-none d-md-flex" role="tablist">
+          <button class="btn btn-outline-secondary btn-sm me-2 active" data-view="grid"><i class="bi bi-grid-3x3-gap"></i></button>
+          <button class="btn btn-outline-secondary btn-sm" data-view="list"><i class="bi bi-list"></i></button>
         </div>
       </div>
 
-      <!-- Posts Grid -->
       <div class="posts-container" id="postsContainer">
-        {% for post in page_obj %}
-        <article class="post-card card border-0 shadow-sm mb-4 hover-lift">
-          {% if post.photo %}
-          <div class="post-image-container position-relative overflow-hidden">
-            <a href="{% url 'post_detail' post.pk %}">
-              <img src="{{ post.photo.url }}" 
-                   class="card-img-top post-image" 
-                   alt="{{ post.title }}"
-                   style="height: 220px; object-fit: cover; transition: transform 0.3s ease;">
-            </a>
-            <div class="post-overlay position-absolute top-0 start-0 p-3">
-              <span class="badge bg-primary bg-gradient rounded-pill px-3">
-                {{ post.genre.name|default:"General" }}
-              </span>
-            </div>
-          </div>
-          {% endif %}
-          
-          <div class="card-body p-4">
-            <div class="post-meta d-flex align-items-center text-muted small mb-3">
-              <div class="d-flex align-items-center me-4">
-                <i class="bi bi-person-circle me-2 text-primary"></i>
-                <a href="{% url 'profile_page' post.author.username %}" 
-                   class="text-decoration-none text-muted hover-primary">
-                  {{ post.author.username }}
-                </a>
-              </div>
-              <div class="d-flex align-items-center">
-                <i class="bi bi-calendar-event me-2 text-primary"></i>
-                <span>{{ post.created_at|date:"M d, Y" }}</span>
-              </div>
-            </div>
-
-            <h3 class="card-title h5 fw-bold mb-3">
-              <a href="{% url 'post_detail' post.pk %}" 
-                 class="text-decoration-none text-dark hover-primary">
-                {{ post.title }}
-              </a>
-            </h3>
-            
-            <p class="card-text text-muted mb-4 line-clamp-3">
-              {{ post.content|safe|truncatewords_html:30 }}
-            </p>
-            
-            <div class="d-flex justify-content-between align-items-center">
-              <a href="{% url 'post_detail' post.pk %}" 
-                 class="btn btn-outline-primary btn-sm rounded-pill px-3 hover-lift">
-                Read More
-                <i class="bi bi-arrow-right ms-1"></i>
-              </a>
-              <div class="post-stats d-flex align-items-center text-muted small">
-                <i class="bi bi-eye me-1"></i>
-                <span class="me-3">{{ post.view_count|default:0 }}</span>
-                <i class="bi bi-chat me-1"></i>
-                <span>{{ post.comment_set.count }}</span>
-              </div>
-            </div>
-          </div>
-        </article>
-        {% empty %}
-        <div class="empty-state text-center py-5">
-          <div class="mb-4">
-            <i class="bi bi-journal-x display-1 text-muted"></i>
-          </div>
-          <h4 class="fw-bold text-muted mb-2">No Posts Yet</h4>
-          <p class="text-muted mb-4">Be the first to share your story with the community!</p>
-          <a href="#" class="btn btn-primary btn-lg rounded-pill px-4">
-            Create First Post
-          </a>
-        </div>
-        {% endfor %}
+        {% include 'blog/includes/post_cards.html' %}
       </div>
 
-      <!-- Pagination -->
-      {% if is_paginated %}
-      <nav class="mt-5" aria-label="Page navigation">
-        <ul class="pagination justify-content-center">
-          {% if page_obj.has_previous %}
-            <li class="page-item">
-              <a class="page-link rounded-pill me-2" href="?page={{ page_obj.previous_page_number }}">
-                <i class="bi bi-chevron-left"></i>
-                Previous
-              </a>
-            </li>
-          {% endif %}
-          
-          {% for i in paginator.page_range %}
-            {% if page_obj.number == i %}
-              <li class="page-item active">
-                <span class="page-link rounded-pill mx-1">{{ i }}</span>
-              </li>
-            {% else %}
-              <li class="page-item">
-                <a class="page-link rounded-pill mx-1" href="?page={{ i }}">{{ i }}</a>
-              </li>
-            {% endif %}
-          {% endfor %}
-          
-          {% if page_obj.has_next %}
-            <li class="page-item">
-              <a class="page-link rounded-pill ms-2" href="?page={{ page_obj.next_page_number }}">
-                Next
-                <i class="bi bi-chevron-right"></i>
-              </a>
-            </li>
-          {% endif %}
-        </ul>
-      </nav>
-      {% endif %}
+      <div id="paginationContainer">
+        {% include 'blog/includes/pagination.html' %}
+      </div>
     </div>
 
-    <!-- ================== SIDEBAR ================== -->
+    <!-- Sidebar -->
     <div class="col-lg-4">
       <div class="sidebar-sticky position-sticky" style="top: 6rem;">
-        
+
         <!-- Welcome Card -->
-        <div class="welcome-card card border-0 shadow-sm mb-4 overflow-hidden">
+        <div class="welcome-card card border-0 shadow-sm mb-4 overflow-hidden hover-lift">
           <div class="card-body p-4 position-relative">
             <div class="welcome-bg position-absolute top-0 end-0 opacity-10">
-              <i class="bi bi-chat-heart display-1"></i>
+              <i class="bi bi-chat-heart display-1 text-danger"></i>
             </div>
             <div class="position-relative">
-              <h5 class="fw-bold text-primary mb-3">Welcome to Sanity Check</h5>
-              <p class="text-muted mb-3 small">
-                A community-driven blog platform powered by AI moderation to ensure 
-                positive and meaningful conversations.
-              </p>
-              <div class="d-flex align-items-center text-success small">
-                <i class="bi bi-shield-check me-2"></i>
-                <span>AI-Powered Safe Space</span>
-              </div>
+              <h5 class="fw-bold mb-3">Welcome to Sanity Check</h5>
+              <p class="text-muted mb-3 small">A community-driven blog platform powered by AI moderation.</p>
+              <div class="d-flex align-items-center text-success small"><i class="bi bi-shield-check me-2"></i><span>AI-Powered Safe Space</span></div>
             </div>
           </div>
         </div>
 
-        <!-- Popular Posts Widget -->
-        <div class="sidebar-widget card border-0 shadow-sm mb-4">
+        <!-- Popular Posts -->
+        <div class="sidebar-widget card border-0 shadow-sm mb-4 hover-lift">
           <div class="card-header bg-transparent border-bottom-0 pb-0">
-            <h6 class="fw-bold mb-0">
-              <i class="bi bi-fire text-danger me-2"></i>
-              Trending Posts
-            </h6>
+            <h6 class="fw-bold mb-0"><i class="bi bi-fire text-danger me-2"></i>Trending Posts</h6>
           </div>
           <div class="card-body pt-3">
             {% for post in popular_posts %}
-            <div class="popular-post-item d-flex align-items-start mb-3 pb-3 border-bottom">
+            <div class="popular-post-item d-flex align-items-start mb-3 pb-3 border-bottom hover-bg rounded p-2">
               {% if post.photo %}
               <div class="popular-post-image me-3 flex-shrink-0">
-                <img src="{{ post.photo.url }}" 
-                     alt="{{ post.title }}" 
-                     class="rounded"
-                     style="width: 60px; height: 60px; object-fit: cover;">
+                <img src="{{ post.photo.url }}" alt="{{ post.title }}" class="rounded" style="width: 60px; height: 60px; object-fit: cover;">
               </div>
               {% endif %}
               <div class="popular-post-content">
-                <h6 class="mb-1 fw-semibold">
-                  <a href="{% url 'post_detail' post.pk %}" 
-                     class="text-decoration-none text-dark hover-primary line-clamp-2">
-                    {{ post.title }}
-                  </a>
-                </h6>
-                <div class="text-muted small">
-                  <i class="bi bi-calendar-event me-1"></i>
-                  {{ post.created_at|date:"M d" }}
-                  <span class="mx-2">•</span>
-                  <i class="bi bi-eye me-1"></i>
-                  {{ post.view_count|default:0 }}
-                </div>
+                <h6 class="mb-1 fw-semibold"><a href="{% url 'post_detail' post.pk %}" class="text-decoration-none text-dark hover-primary line-clamp-2">{{ post.title }}</a></h6>
+                <div class="text-muted small"><i class="bi bi-calendar-event me-1"></i>{{ post.created_at|date:"M d" }} • <i class="bi bi-eye me-1"></i>{{ post.view_count|default:0 }}</div>
               </div>
             </div>
             {% empty %}
-            <div class="text-center text-muted py-3">
-              <i class="bi bi-graph-up display-4 mb-2"></i>
-              <p class="small mb-0">No trending posts yet</p>
-            </div>
+            <div class="text-center text-muted py-3"><i class="bi bi-graph-up display-4 mb-2 text-danger"></i><p class="small mb-0">No trending posts yet</p></div>
             {% endfor %}
           </div>
         </div>
 
-        <!-- Recent Activity Widget -->
-        <div class="sidebar-widget card border-0 shadow-sm">
-          <div class="card-header bg-transparent border-bottom-0 pb-0">
-            <h6 class="fw-bold mb-0">
-              <i class="bi bi-chat-dots text-primary me-2"></i>
-              Recent Activity
-            </h6>
-          </div>
+        <!-- Recent Activity -->
+        <div class="sidebar-widget card border-0 shadow-sm hover-lift">
+          <div class="card-header bg-transparent border-bottom-0 pb-0"><h6 class="fw-bold mb-0"><i class="bi bi-chat-dots text-danger me-2"></i>Recent Activity</h6></div>
           <div class="card-body pt-3">
             {% for comment in recent_comments %}
-            <div class="recent-activity-item d-flex align-items-start mb-3 pb-3 border-bottom">
+            <div class="recent-activity-item d-flex align-items-start mb-3 pb-3 border-bottom hover-bg rounded p-2">
               <div class="activity-icon me-3 flex-shrink-0">
-                <div class="rounded-circle bg-light d-flex align-items-center justify-content-center"
-                     style="width: 36px; height: 36px;">
-                  <i class="bi bi-chat text-primary"></i>
+                <div class="rounded-circle bg-light d-flex align-items-center justify-content-center" style="width: 36px; height: 36px;">
+                  <i class="bi bi-chat text-danger"></i>
                 </div>
               </div>
               <div class="activity-content">
                 <div class="fw-semibold small">{{ comment.author.username }}</div>
-                <div class="text-muted small mb-1">
-                  commented on 
-                  <a href="{% url 'post_detail' comment.post.pk %}#comment-{{ comment.pk }}" 
-                     class="text-decoration-none hover-primary">
-                    {{ comment.post.title|truncatewords:4 }}
-                  </a>
-                </div>
-                <p class="text-muted small mb-0 fst-italic line-clamp-2">
-                  "{{ comment.text|truncatewords:15 }}"
-                </p>
+                <div class="text-muted small mb-1">commented on <a href="{% url 'post_detail' comment.post.pk %}#comment-{{ comment.pk }}" class="text-decoration-none hover-primary">{{ comment.post.title|truncatewords:4 }}</a></div>
+                <p class="text-muted small mb-0 fst-italic line-clamp-2">"{{ comment.text|truncatewords:15 }}"</p>
               </div>
             </div>
             {% empty %}
-            <div class="text-center text-muted py-3">
-              <i class="bi bi-chat-square display-4 mb-2"></i>
-              <p class="small mb-0">No recent activity</p>
-            </div>
+            <div class="text-center text-muted py-3"><i class="bi bi-chat-square display-4 text-danger mb-2"></i><p class="small mb-0">No recent activity</p></div>
             {% endfor %}
           </div>
         </div>
@@ -295,244 +129,12 @@
     </div>
   </div>
 </div>
-
-<style>
-/* Enhanced Styles for Beautiful Post List */
-:root {
-  --primary-color: #3b82f6;
-  --primary-hover: #2563eb;
-  --danger-color: #ef4444;
-  --success-color: #10b981;
-  --warning-color: #f59e0b;
-  --dark-color: #1f2937;
-  --muted-color: #6b7280;
-  --light-bg: #f8fafc;
-  --border-color: #e5e7eb;
-}
-
-/* Smooth transitions */
-* {
-  transition: all 0.2s ease;
-}
-
-/* Hero Section Enhancements */
-.hero-section .hero-card-large {
-  min-height: 500px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
-
-.hero-title {
-  text-shadow: 0 2px 4px rgba(0,0,0,0.3);
-  line-height: 1.2;
-}
-
-.hero-excerpt {
-  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
-}
-
-/* Hover Effects */
-.hover-lift {
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-
-.hover-lift:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 10px 25px rgba(0,0,0,0.15) !important;
-}
-
-.hover-primary:hover {
-  color: var(--primary-color) !important;
-}
-
-/* Post Cards */
-.post-card {
-  border-radius: 16px !important;
-  overflow: hidden;
-  transition: all 0.3s ease;
-}
-
-.post-card:hover {
-  border-color: var(--primary-color) !important;
-}
-
-.post-card:hover .post-image {
-  transform: scale(1.05);
-}
-
-.post-overlay {
-  background: linear-gradient(135deg, rgba(0,0,0,0.7) 0%, transparent 100%);
-  border-radius: 0 0 16px 0;
-}
-
-/* Line Clamp Utility */
-.line-clamp-2 {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.line-clamp-3 {
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-/* Section Header */
-.section-header {
-  border-bottom: 2px solid var(--border-color);
-  padding-bottom: 1rem;
-}
-
-.section-title {
-  color: var(--dark-color);
-  font-size: 2rem;
-}
-
-/* Sidebar Enhancements */
-.sidebar-sticky {
-  top: 6rem !important;
-}
-
-.sidebar-widget .card {
-  border-radius: 16px !important;
-}
-
-.welcome-card {
-  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-}
-
-.popular-post-item:last-child {
-  border-bottom: none !important;
-  margin-bottom: 0 !important;
-  padding-bottom: 0 !important;
-}
-
-/* Pagination */
-.pagination .page-link {
-  border: 2px solid var(--border-color);
-  color: var(--muted-color);
-  font-weight: 500;
-  padding: 0.5rem 1rem;
-}
-
-.pagination .page-item.active .page-link {
-  background: var(--primary-color);
-  border-color: var(--primary-color);
-  color: white;
-}
-
-.pagination .page-link:hover {
-  border-color: var(--primary-color);
-  color: var(--primary-color);
-}
-
-/* Empty State */
-.empty-state {
-  padding: 4rem 2rem;
-  background: var(--light-bg);
-  border-radius: 16px;
-  border: 2px dashed var(--border-color);
-}
-
-/* View Toggle Buttons */
-.view-toggle .btn {
-  border-radius: 8px !important;
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.view-toggle .btn.active {
-  background-color: var(--primary-color);
-  border-color: var(--primary-color);
-  color: white;
-}
-
-/* Badge Gradients */
-.bg-gradient {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-}
-
-/* Responsive Improvements */
-@media (max-width: 768px) {
-  .hero-section .hero-content {
-    padding: 2rem !important;
-  }
-  
-  .hero-title {
-    font-size: 2rem !important;
-  }
-  
-  .section-title {
-    font-size: 1.5rem;
-  }
-  
-  .post-card .card-body {
-    padding: 1.5rem !important;
-  }
-  
-  .sidebar-sticky {
-    position: static !important;
-    top: auto !important;
-  }
-}
-
-/* Animation for new content */
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.post-card {
-  animation: fadeInUp 0.6s ease;
-}
-
-.post-card:nth-child(2) { animation-delay: 0.1s; }
-.post-card:nth-child(3) { animation-delay: 0.2s; }
-.post-card:nth-child(4) { animation-delay: 0.3s; }
-</style>
-
-<script>
-// View Toggle Functionality (Grid/List)
-document.addEventListener('DOMContentLoaded', function() {
-  const viewToggleButtons = document.querySelectorAll('.view-toggle button');
-  const postsContainer = document.getElementById('postsContainer');
-  
-  viewToggleButtons.forEach(button => {
-    button.addEventListener('click', function() {
-      // Remove active class from all buttons
-      viewToggleButtons.forEach(btn => btn.classList.remove('active'));
-      // Add active class to clicked button
-      this.classList.add('active');
-      
-      const view = this.dataset.view;
-      if (view === 'list') {
-        postsContainer.classList.add('list-view');
-      } else {
-        postsContainer.classList.remove('list-view');
-      }
-    });
-  });
-});
-
-// Smooth scrolling for anchor links
-document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-  anchor.addEventListener('click', function (e) {
-    e.preventDefault();
-    document.querySelector(this.getAttribute('href')).scrollIntoView({
-      behavior: 'smooth'
-    });
-  });
-});
-</script>
 {% endblock %}
+
+{% block javascript %}
+
+  <script src="{% static 'js/post_list.js' %}"></script>
+  
+
+{% endblock %}
+

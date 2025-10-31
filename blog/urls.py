@@ -28,7 +28,9 @@ urlpatterns = [
     path('post/new/', views.PostCreateView.as_view(), name='post_create'),
     path('post/<int:pk>/update/', views.PostUpdateView.as_view(), name='post_update'),
     path('post/<int:pk>/delete/', views.PostDeleteView.as_view(), name='post_delete'),
-
+    path('notifications/mark-as-read/', views.mark_notifications_as_read, name='mark_notifications_as_read'),
+    path('notifications/get-count/', views.get_notification_count, name='get_notification_count'),
+    path('notifications/get-html/', views.get_notifications_html, name='get_notifications_html'),
     # --- Comment System ---
     path('post/<int:pk>/comment/', views.add_comment, name='add_comment'),
     path('comment/<int:pk>/edit/', views.edit_my_comment, name='edit_my_comment'),
@@ -39,6 +41,7 @@ urlpatterns = [
 
     # ✅ Unified AJAX comment actions (upvote, downvote, delete)
     path('comment/action/', views.comment_action, name='comment_action'),
+    path('ajax/posts/', views.ajax_post_list, name='ajax_post_list'),
     
 
     # --- Admin Section ---
@@ -50,5 +53,8 @@ urlpatterns = [
     path("admin-dashboard/ban/", views.ban_user, name="ban_user"),
     path("admin-dashboard/unban/<int:user_id>/", views.unban_user, name="unban_user"),
     path('admin/set-featured-post/', views.set_featured_post, name='set_featured_post'),
+    path('admin/inquiries/', views.admin_inquiries, name='admin_inquiries'),
+    path('admin/inquiry/<int:pk>/status/<str:status>/', views.update_inquiry_status, name='update_inquiry_status'),
+    path('admin/inquiry/<int:pk>/delete/', views.delete_inquiry, name='delete_inquiry'),
 
 ]

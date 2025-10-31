@@ -1,62 +1,112 @@
-{% extends "base.html" %}
+{% extends "base.html" %} {% load static %} {% block title %}Comment Moderation
+Queue{% endblock %} {% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h2 fw-bold">
+      <i class="bi bi-exclamation-triangle-fill me-2 text-danger"></i>Comments
+      Moderation Queue
+    </h1>
+    <a href="{% url 'admin_dashboard' %}" class="btn btn-outline-secondary"
+      >← Back to Dashboard</a
+    >
+  </div>
 
-{% block content %}
-<div class="container">
-    <h1 class="mb-4">Comments Moderation Queue</h1>
-    
-    <div class="card">
-        <div class="card-header bg-warning text-dark">
-            <h2 class="h5 mb-0"><i class="bi bi-exclamation-triangle-fill"></i> Flagged for Toxicity</h2>
-        </div>
-        <div class="card-body">
-            {% if comments %}
-            <div class="table-responsive">
-                <table class="table table-hover align-middle">
-                    <thead>
-                        <tr>
-                            <th>Post</th>
-                            <th>Author</th>
-                            <th>Comment</th>
-                            <th>Date</th>
-                            <th class="text-center">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for comment in comments %}
-                        <tr>
-                            <td>
-                                <a href="{% url 'post_detail' comment.post.pk %}#comment-{{ comment.pk }}">
-                                    {{ comment.post.title|truncatewords:5 }}
-                                </a>
-                            </td>
-                            <td>{{ comment.author }}</td>
-                            <td>{{ comment.text|truncatewords:15 }}</td>
-                            <td>{{ comment.created_at|date:"M d, Y" }}</td>
-                            <td class="text-center">
-                                <a href="{% url 'approve_comment' comment.pk %}" class="btn btn-sm btn-success" title="Approve">
-                                    <i class="bi bi-check-lg"></i> Approve
-                                </a>
-                                <a href="{% url 'delete_comment' comment.pk %}" class="btn btn-sm btn-danger" title="Delete">
-                                    <i class="bi bi-trash-fill"></i> Delete
-                                </a>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+  <!-- =================================================================== -->
+  <!-- === THIS IS THE FIX: We wrap the content in a consistent card === -->
+  <!-- =================================================================== -->
+  <div class="card shadow-sm border-0" style="border-radius: 1rem">
+    <div class="card-body p-0">
+      <div class="list-group list-group-flush">
+        {% for comment in comments %}
+        <div class="list-group-item p-3">
+          <div class="d-flex justify-content-between align-items-center">
+            <!-- Comment Info -->
+            <div>
+              <p class="mb-1 fst-italic">"{{ comment.text }}"</p>
+              <small class="text-muted">
+                By <strong>{{ comment.author.username }}</strong> on
+                <a href="{{ comment.post.get_absolute_url }}" target="_blank"
+                  >{{ comment.post.title }}</a
+                >
+              </small>
             </div>
-            
-            <!-- Pagination -->
-            {% if comments.has_other_pages %}
-            {% include 'blog/includes/pagination.html' %}
-            {% endif %}
-            
-            {% else %}
-            <div class="alert alert-success">
-                <i class="bi bi-check-circle-fill"></i> No toxic comments to moderate. The queue is clear!
+
+            <!-- Status Badge and Action Buttons -->
+            <div class="d-flex align-items-center">
+              {% if comment.report_count > 0 %}
+              <span class="badge bg-danger me-3"
+                >Reported by USER ({{ comment.report_count }})</span
+              >
+              {% elif comment.status == 'pending_review' %}
+              <span class="badge bg-warning text-dark me-3">AI Flagged</span>
+              {% endif %}
+              <div class="btn-group">
+                <a
+                  href="{% url 'approve_comment' comment.pk %}"
+                  class="btn btn-sm btn-success"
+                  >Approve</a
+                >
+                <a
+                  href="{% url 'delete_comment' comment.pk %}"
+                  class="btn btn-sm btn-danger"
+                  >Delete</a
+                >
+              </div>
             </div>
-            {% endif %}
+          </div>
         </div>
+        {% empty %}
+        <!-- =================================================================== -->
+        <!-- === THIS IS THE FIX for the empty state === -->
+        <!-- =================================================================== -->
+        <div class="list-group-item text-center p-5">
+          <div class="mb-3">
+            <i
+              class="bi bi-shield-check text-success"
+              style="font-size: 3rem"
+            ></i>
+          </div>
+          <h4 class="text-success fw-light">The queue is clear!</h4>
+          <p class="text-muted mb-0">
+            There are no comments to moderate at this time.
+          </p>
+        </div>
+        {% endfor %}
+      </div>
     </div>
+  </div>
+
+  <!-- Pagination (if you have it for this page) -->
+  <div class="mt-4">
+    {% if comments.has_other_pages %}
+    <ul class="pagination justify-content-center">
+      {% if comments.has_previous %}
+      <li class="page-item">
+        <a class="page-link" href="?page={{ comments.previous_page_number }}"
+          >Previous</a
+        >
+      </li>
+      {% else %}
+      <li class="page-item disabled">
+        <span class="page-link">Previous</span>
+      </li>
+      {% endif %}
+      <li class="page-item active">
+        <span class="page-link"
+          >{{ comments.number }} of {{ comments.paginator.num_pages }}</span
+        >
+      </li>
+      {% if comments.has_next %}
+      <li class="page-item">
+        <a class="page-link" href="?page={{ comments.next_page_number }}"
+          >Next</a
+        >
+      </li>
+      {% else %}
+      <li class="page-item disabled"><span class="page-link">Next</span></li>
+      {% endif %}
+    </ul>
+    {% endif %}
+  </div>
 </div>
 {% endblock %}

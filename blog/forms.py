@@ -1,6 +1,6 @@
 # File: blog/forms.py
 from django import forms
-from .models import Post, Comment, Genre, Profile
+from .models import Post, Comment, Genre, Profile, UserInquiry
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 
@@ -36,41 +36,49 @@ class CommentForm(forms.ModelForm):
         }
 
     def clean_text(self):
-        text = self.cleaned_data.get('text', '')
+        """
+        Ensure we always return a defined `text` and enforce a word limit.
+        This prevents NameError/500s when downstream code (classifier, view)
+        reads comment.text.
+        """
+        text = self.cleaned_data.get('text', '') or ''
+        text = text.strip()
+
+        if not text:
+            raise forms.ValidationError("Comment cannot be empty.")
+
         word_limit = 100
-        word_count = len(text.strip().split())
+        word_count = len(text.split())
         if word_count > word_limit:
             raise forms.ValidationError(
-                f"Please keep your comment under {word_limit} words. "
-                f"You have used {word_count} words."
+                f"Please keep your comment under {word_limit} words. You used {word_count}."
             )
+
         return text
 
 
 # ========================
-# Contact Form
+# Contact Form (ModelForm using UserInquiry)
 # ========================
-class ContactForm(forms.Form):
-    name = forms.CharField(
-        max_length=100,
-        widget=forms.TextInput(attrs={
-            'class': 'form-control',
-            'placeholder': 'Enter your name'
-        })
-    )
-    email = forms.EmailField(
-        widget=forms.EmailInput(attrs={
-            'class': 'form-control',
-            'placeholder': 'Enter your email address'
-        })
-    )
-    message = forms.CharField(
-        widget=forms.Textarea(attrs={
-            'class': 'form-control',
-            'rows': 5,
-            'placeholder': "What's on your mind?"
-        })
-    )
+class ContactForm(forms.ModelForm):
+    class Meta:
+        model = UserInquiry
+        fields = ['name', 'email', 'message']
+        widgets = {
+            'name': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Enter your name'
+            }),
+            'email': forms.EmailInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Enter your email address'
+            }),
+            'message': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 5,
+                'placeholder': "What's on your mind?"
+            }),
+        }
 
 
 # ========================
@@ -120,10 +128,32 @@ class UserUpdateForm(forms.ModelForm):
 class ProfileUpdateForm(forms.ModelForm):
     class Meta:
         model = Profile
-        fields = ['image', 'bio']
+        fields = [
+            'image',
+            'bio',
+            'website_url',
+            'twitter_handle',
+            'github_username'
+        ]
         widgets = {
             'bio': forms.Textarea(attrs={
                 'class': 'form-control',
-                'rows': 4
+                'rows': 3,
+                'placeholder': 'Tell everyone a little bit about yourself...'
             }),
+            'website_url': forms.URLInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'https://your-website.com'
+            }),
+            'twitter_handle': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'YourTwitterHandle (without @)'
+            }),
+            'github_username': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'YourGitHubUsername'
+            }),
+        }
+        help_texts = {
+            'twitter_handle': 'Enter your handle without the "@" symbol.',
         }

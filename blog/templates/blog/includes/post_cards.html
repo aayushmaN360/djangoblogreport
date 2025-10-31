@@ -1,0 +1,75 @@
+<!-- File: blog/templates/blog/includes/post_cards.html -->
+<div class="row g-4">
+  {% for post in page_obj %}
+  <div class="col-md-6 col-lg-4">
+    <article class="post-card card border-0 shadow-sm h-100 hover-lift">
+      {% if post.photo %}
+      <div class="post-image-container position-relative overflow-hidden">
+        <a href="{% url 'post_detail' post.pk %}">
+          <img src="{{ post.photo.url }}" 
+               class="card-img-top post-image" 
+               alt="{{ post.title }}">
+        </a>
+        <div class="post-overlay position-absolute top-0 start-0 p-3">
+          <span class="badge bg-gradient rounded-pill px-3">
+            {{ post.genre.name|default:"General" }}
+          </span>
+        </div>
+      </div>
+      {% endif %}
+      
+      <div class="card-body p-4">
+        <div class="post-meta d-flex align-items-center text-muted small mb-3">
+          <div class="d-flex align-items-center me-4">
+            <i class="bi bi-person-circle me-2"></i>
+            <a href="{% url 'profile_page' post.author.username %}" 
+               class="text-decoration-none text-muted hover-primary">
+              {{ post.author.username }}
+            </a>
+          </div>
+          <div class="d-flex align-items-center">
+            <i class="bi bi-calendar-event me-2"></i>
+            <span>{{ post.created_at|date:"M d, Y" }}</span>
+          </div>
+        </div>
+
+        <h3 class="card-title h5 fw-bold mb-3">
+          <a href="{% url 'post_detail' post.pk %}" 
+             class="text-decoration-none text-dark hover-primary">
+            {{ post.title }}
+          </a>
+        </h3>
+        
+        <p class="card-text text-muted mb-4 line-clamp-3">
+          {{ post.content|safe|truncatewords_html:30 }}
+        </p>
+        
+        <div class="d-flex justify-content-between align-items-center">
+          <a href="{% url 'post_detail' post.pk %}" 
+             class="btn btn-outline-primary btn-sm rounded-pill px-3 hover-lift">
+            Read More
+            <i class="bi bi-arrow-right ms-1"></i>
+          </a>
+          <div class="post-stats d-flex align-items-center text-muted small">
+            <i class="bi bi-eye me-1"></i>
+            <span class="me-3">{{ post.view_count|default:0 }}</span>
+            <i class="bi bi-chat me-1"></i>
+            <span>{{ post.comment_set.count }}</span>
+          </div>
+        </div>
+      </div>
+    </article>
+  </div>
+  {% empty %}
+  <div class="col-12 text-center py-5">
+    <div class="mb-4">
+      <i class="bi bi-journal-x display-1 text-danger"></i>
+    </div>
+    <h4 class="fw-bold mb-2">No Posts Yet</h4>
+    <p class="text-muted mb-4">Be the first to share your story with the community!</p>
+    <a href="#" class="btn btn-primary btn-lg rounded-pill px-4">
+      Create First Post
+    </a>
+  </div>
+  {% endfor %}
+</div>

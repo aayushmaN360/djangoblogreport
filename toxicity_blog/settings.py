@@ -26,7 +26,7 @@ SECRET_KEY = "django-insecure-u5g8f+l$f)yg=5v5d*q1lxcc$dj-%d28+5-71q@u*h)(fm@l-8
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS =["*"]
 
 
 # Application definition
@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'blog.apps.BlogConfig', 
     'django.contrib.humanize',
     'ckeditor', 
+    "channels",
     
     
     
