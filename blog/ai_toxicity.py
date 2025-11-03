@@ -72,7 +72,7 @@ class _BaseToxicityClassifier:
 # --- NEW: Allowlist of Positive Words ---
 SAFE_TRIGGERS = {
     'nepal', 'beautiful', 'country', 'love', 'amazing', 'wonderful',
-    'thank you', 'thanks', 'appreciate', 'great', 'excellent'
+    'thank you', 'thanks', 'appreciate', 'great', 'excellent','post','amazing','ok'
 }
 
 # --- Rule-Based High-Toxicity Triggers ---

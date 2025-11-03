@@ -31,6 +31,7 @@ urlpatterns = [
     path('notifications/mark-as-read/', views.mark_notifications_as_read, name='mark_notifications_as_read'),
     path('notifications/get-count/', views.get_notification_count, name='get_notification_count'),
     path('notifications/get-html/', views.get_notifications_html, name='get_notifications_html'),
+    path('like/', views.like_post, name='like_post'),
     # --- Comment System ---
     path('post/<int:pk>/comment/', views.add_comment, name='add_comment'),
     path('comment/<int:pk>/edit/', views.edit_my_comment, name='edit_my_comment'),

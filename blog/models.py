@@ -10,7 +10,6 @@ from ckeditor.fields import RichTextField
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     
-    # Default image can be adjusted to point to static folder if needed
     image = models.ImageField(default='profile_pics/default.jpg', upload_to='profile_pics')
     
     bio = models.TextField(max_length=500, blank=True)
@@ -69,7 +68,10 @@ class Post(models.Model):
 
     view_count = models.PositiveIntegerField(default=0, help_text="Automatically updated.")
     is_featured = models.BooleanField(default=False, help_text="Only one post can be featured at a time.")
+    likes = models.ManyToManyField(User, related_name='blog_post_likes', blank=True)
 
+    def total_likes(self):
+        return self.likes.count()
     class Meta:
         ordering = ['-created_at']
 
@@ -124,7 +126,6 @@ class Comment(models.Model):
         return "reported"
 
 
-# ------------------ Notification ------------------
 class Notification(models.Model):
     NOTIFICATION_TYPES = (
         ('new_comment', 'New Comment'),
