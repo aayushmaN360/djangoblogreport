@@ -135,6 +135,10 @@ class PostDetailView(DetailView):
         context = super().get_context_data(**kwargs)
         post = self.get_object()
         user = self.request.user
+        context['user_has_liked'] = False
+        if user.is_authenticated:
+            if post.likes.filter(pk=user.pk).exists():
+                context['user_has_liked'] = True
 
         if user.is_authenticated:
             visibility_filter = (Q(status='approved') & ~Q(reported_by=user)) | Q(author=user)
@@ -465,6 +469,32 @@ class PostUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
 class PostDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
     model = Post; template_name = 'blog/post_confirm_delete.html'; success_url = reverse_lazy('post_list')
     def test_func(self): return self.request.user == self.get_object().author
+@login_required # Ensures only logged-in users can like posts
+def like_post(request):
+    # This view expects a POST request from our JavaScript
+    if request.method == 'POST':
+        post_id = request.POST.get('post_id')
+        post = get_object_or_404(Post, id=post_id)
+        user = request.user
+        
+        # This is the core toggle logic
+        if user in post.likes.all():
+            # If the user has already liked the post, this click is an "unlike"
+            post.likes.remove(user)
+            liked = False
+        else:
+            # If the user has not liked the post, this click is a "like"
+            post.likes.add(user)
+            liked = True
+            
+        # Return a JSON response with the new like count and the user's like status
+        return JsonResponse({
+            'total_likes': post.total_likes(),
+            'liked': liked
+        })
+    
+ 
+    return redirect('post_list')
 
 @staff_member_required
 def delete_comment(request, pk):
@@ -597,140 +627,85 @@ def add_comment(request, pk):
     user = request.user
     is_ajax = request.headers.get("x-requested-with") == "XMLHttpRequest"
 
-    new_notification_count = 0
-    new_notification_html = ""
-    message_for_commenter = ""
-
-    # === Banned user check (time-based, safer than boolean) ===
-    if hasattr(user, "profile") and getattr(user.profile, "comment_ban_until", None):
-        if user.profile.comment_ban_until and user.profile.comment_ban_until > timezone.now():
-            msg = "🚫 You are temporarily banned from commenting."
-            if is_ajax:
-                return JsonResponse({"status": "error", "message": msg}, status=403)
-            messages.error(request, msg)
-            return redirect("post_detail", pk=post.pk)
+    # Banned user check
+    if hasattr(user, "profile") and user.profile.comment_ban_until and user.profile.comment_ban_until > timezone.now():
+        msg = "🚫 You are temporarily banned from commenting."
+        if is_ajax: return JsonResponse({"status": "error", "message": msg}, status=403)
+        messages.error(request, msg); return redirect("post_detail", pk=post.pk)
 
     form = CommentForm(request.POST)
     if not form.is_valid():
-        if is_ajax:
-            return JsonResponse({"status": "error", "message": "Invalid form submission."}, status=400)
-        messages.error(request, "Invalid comment form submission.")
-        return redirect("post_detail", pk=post.pk)
+        if is_ajax: return JsonResponse({"status": "error", "message": "Invalid form submission."}, status=400)
+        messages.error(request, "Invalid comment form submission."); return redirect("post_detail", pk=post.pk)
 
-    # === Build comment ===
     comment = form.save(commit=False)
-    comment.post = post
-    comment.author = user
-
-    parent_id = request.POST.get("parent_id")
-    if parent_id:
+    comment.post, comment.author = post, user
+    if parent_id := request.POST.get("parent_id"):
         comment.parent = get_object_or_404(Comment, pk=parent_id, post=post)
 
-    # === Toxicity check ===
     is_toxic, label = toxicity_classifier.predict(comment.text)
-
-    html = ""
-    status_code = 200
     notification_recipient = None
 
-    # ---------------- CASE A: Non-toxic ----------------
     if not is_toxic:
         comment.status = "approved"
-        comment.save()
-        message_for_commenter = "✅ Your comment was posted successfully."
+        message = "✅ Your comment was posted successfully."
         status_code = 200
-
-        # Notify post author or parent comment author
         if not comment.parent and post.author != user:
             notification_recipient = post.author
-            notif_type = "new_comment"
-            notif_message = f"{user.username} left a new comment on your post: '{post.title}'."
         elif comment.parent and comment.parent.author != user:
             notification_recipient = comment.parent.author
-            notif_type = "new_reply"
-            notif_message = f"{user.username} replied to your comment on '{post.title}'."
-
-        if notification_recipient:
-            notification = Notification.objects.create(
-                user=notification_recipient,
-                notification_type=notif_type,
-                message=notif_message,
-                comment=comment,
-            )
-            new_notification_html = render_to_string(
-                "blog/includes/notification_item.html",
-                {"notification": notification},
-                request=request,
-            )
-
-    # ---------------- CASE B: Toxic ----------------
+    
     elif label == "toxic":
-        comment.status = "pending_review"
-        comment.toxicity_label = label
-        comment.save()
-        message_for_commenter = "⚠️ Your comment was flagged and sent for review. You can edit it later."
+        comment.status, comment.toxicity_label = "pending_review", label
+        message = "⚠️ Your comment was flagged and sent for review. You can edit it later."
         status_code = 201
+      
+       # notification_recipient = user # The commenter is the recipient
+   
 
-        # Notify the commenter (self)
-        notification = Notification.objects.create(
-            user=user,
-            notification_type="toxic_comment",
-            message=f"Your comment on '{post.title}' requires editing.",
-            comment=comment,
-        )
-        new_notification_html = render_to_string(
-            "blog/includes/notification_item.html",
-            {"notification": notification},
-            request=request,
-        )
-
-        new_notification_count = Notification.objects.filter(user=user, read=False).count()
-
-    # ---------------- CASE C: Highly toxic ----------------
     elif label == "highly-toxic":
-        comment.status = "rejected"
-        comment.toxicity_label = label
-        comment.save()  # Save for moderation record
-
+        comment.status, comment.toxicity_label = "rejected", label
+        comment.save() # Save for moderation record
         user.profile.comment_ban_until = timezone.now() + timedelta(minutes=5)
         user.profile.save()
+        message = "🚫 Highly toxic comment rejected. You are blocked from commenting for 5 minutes."
+        if is_ajax: return JsonResponse({"status": "error", "message": message}, status=400)
+        messages.error(request, message); return redirect("post_detail", pk=post.pk)
 
-        message_for_commenter = "🚫 Highly toxic comment rejected. You are blocked from commenting for 5 minutes."
-        if is_ajax:
-            return JsonResponse({"status": "error", "message": message_for_commenter}, status=400)
-        messages.error(request, message_for_commenter)
-        return redirect("post_detail", pk=post.pk)
+    comment.save()
 
-    # === Notification count update (for all cases with recipients) ===
+    # Create notification and get HTML if there's a recipient
+    new_notification_html = ""
     if notification_recipient:
-        new_notification_count = Notification.objects.filter(
-            user=notification_recipient, read=False
-        ).count()
+        notif_type = "new_comment"
+        notif_message = f"{user.username} left a new comment on your post: '{post.title}'."
+        if comment.parent:
+            notif_type, notif_message = "new_reply", f"{user.username} replied to your comment on '{post.title}'."
+        if comment.status == 'pending_review':
+            notif_type, notif_message = "toxic_comment", f"Your comment on '{post.title}' requires editing."
+        
+        notification = Notification.objects.create(user=notification_recipient, notification_type=notif_type, message=notif_message, comment=comment)
+        new_notification_html = render_to_string("blog/includes/notification_item.html", {"notification": notification}, request=request)
+    
+    # Calculate final count for the correct recipient
+    new_notification_count = 0
+    if notification_recipient:
+        new_notification_count = Notification.objects.filter(user=notification_recipient, read=False).count()
 
-    # === AJAX Response ===
     if is_ajax:
+        html = ""
         if comment.status in ["approved", "pending_review"]:
-            html = render_to_string(
-                "blog/includes/comment.html",
-                {"comment": comment, "user": user, "post": post},
-                request=request,
-            )
+            html = render_to_string("blog/includes/comment.html", {"comment": comment, "user": user, "post": post}, request=request)
+        return JsonResponse({
+            "status": comment.status,
+            "message": message, "html": html,
+            "unread_notification_count": new_notification_count,
+            "new_notification_html": new_notification_html,
+            "recipient_id": notification_recipient.id if notification_recipient else None,
+        }, status=status_code)
 
-        return JsonResponse(
-            {
-                "status": comment.status,
-                "message": message_for_commenter,
-                "html": html,
-                "new_notification_count": new_notification_count,
-                "new_notification_html": new_notification_html,
-            },
-            status=status_code,
-        )
-
-    # === Non-AJAX fallback ===
-    messages.success(request, message_for_commenter)
+    messages.success(request, message)
     return redirect("post_detail", pk=post.pk)
-
 
 @login_required
 def dashboard(request):
